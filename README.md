@@ -42,3 +42,52 @@ conda create -n polygonal-circle python=3.12 -y
 conda activate polygonal-circle
 pip install -e .
 ```
+
+## CLI Usage
+
+The package provides the `polygonal-circle` command-line tool:
+
+```bash
+# 1. Inspect exact geometric metrics across recursion levels
+polygonal-circle inspect -R 1.0 --eta 0.1 -a 0.5 -b 3 -L 6
+
+# 2. Compare behavior across the three scaling regimes (a < 1/3, a = 1/3, a > 1/3)
+polygonal-circle regimes -L 7
+
+# 3. Test Richardson coastline scaling and box-counting dimensions against theory
+polygonal-circle dimensions -L 9
+
+# 4. Generate publication-quality figures
+polygonal-circle plot -o assets
+```
+
+## Visualizations
+
+### 1. Multi-Level Shape Evolution
+![Multi-level Polygons](assets/multilevel_shapes.png)
+
+### 2. Scaling Regimes Comparison
+![Scaling Regimes](assets/scaling_regimes.png)
+
+### 3. Richardson Coastline Dimension & Scale Crossover
+![Richardson Coastline Scaling](assets/richardson_crossover.png)
+
+### 4. Macroscopic Circle vs. Microscopic Fractal Facets
+![Macroscopic vs Microscopic](assets/macroscopic_vs_microscopic.png)
+
+## Empirical Findings
+
+1. **Envelope Confinement**: At all levels $n$, $r_n(\theta) \le R$ and all polygonal edges remain strictly inside the circular disk.
+2. **Perimeter Divergence**: For $a = 0.50$, the perimeter grows from $6.000$ at $n=0$ to $26.118$ at $n=11$, with the growth ratio $P_{n+1}/P_n \to 3a = 1.500$.
+3. **Area Boundedness**: The enclosed area converges to $A_\infty \approx 2.837 < \pi R^2 \approx 3.14159$.
+4. **Scale Crossover**:
+   - Coarse scale fit ($n=1\dots 4$): $D \approx 1.005$ (looks like a standard Euclidean circle).
+   - Fine scale fit ($n=7\dots 11$): $D \approx 1.365$ (converges to theoretical dimension $D = 1 + \log(1.5)/\log(3) \approx 1.369$).
+5. **Isoperimetric Collapse**: The isoperimetric quotient $Q = 4\pi A / P^2$ collapses towards $0$ as $n \to \infty$, demonstrating the transition from Euclidean circle to fractal boundary.
+
+## Testing
+
+```bash
+pytest tests/
+```
+
