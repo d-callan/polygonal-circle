@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Callable, Union
 import numpy as np
 
 from polygonal_circle.geometry import Polygon
-from polygonal_circle.waves import triangle_wave
+from polygonal_circle.waves import WaveformType, get_waveform, triangle_wave
 
 
 class ScalingRegime(str, Enum):
@@ -76,6 +77,7 @@ class PolygonalCircle:
         a: float = 0.5,
         b: int = 3,
         base_sides: int = 6,
+        waveform: Union[WaveformType, str, Callable[[np.ndarray | float], np.ndarray]] = WaveformType.TRIANGLE,
     ):
         if radius <= 0:
             raise ValueError(f"Radius R must be positive, got {radius}")
@@ -101,6 +103,8 @@ class PolygonalCircle:
         self.a = float(a)
         self.b = int(b)
         self.base_sides = int(base_sides)
+        self.waveform = waveform
+        self.phi_fn = get_waveform(waveform, zero_mean=False)
 
     @property
     def scaling(self) -> ScalingProperties:
@@ -117,7 +121,7 @@ class PolygonalCircle:
             ak = self.a ** k
             freq = self.b ** k
             u = freq * theta_arr / (2.0 * np.pi)
-            phi = triangle_wave(u)
+            phi = self.phi_fn(u)
             total += ak * phi
         return total
 

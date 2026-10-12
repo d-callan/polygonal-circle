@@ -3,29 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable, Union
 import numpy as np
 
 from polygonal_circle.geometry import Polygon
 from polygonal_circle.model import ScalingProperties
-
-
-def zero_mean_triangle_wave(u: np.ndarray | float, phase: float = 0.0) -> np.ndarray:
-    """Evaluate periodic symmetric triangle wave with range [-1, 1] and zero mean.
-    
-    Formula:
-        u_shifted = (u + phase) mod 1
-        phi(u) = 1.0 - 4.0 * |u_shifted - 0.5|
-    
-    Properties:
-        phi(0) = -1.0 (trough)
-        phi(0.25) = 0.0 (zero-crossing)
-        phi(0.5) = +1.0 (crest)
-        phi(0.75) = 0.0 (zero-crossing)
-        phi(1.0) = -1.0 (trough)
-    """
-    u_arr = np.asarray(u, dtype=np.float64)
-    u_shifted = np.mod(u_arr + phase, 1.0)
-    return 1.0 - 4.0 * np.abs(u_shifted - 0.5)
+from polygonal_circle.waves import WaveformType, get_waveform, zero_mean_triangle_wave
 
 
 @dataclass(frozen=True)
@@ -78,6 +61,7 @@ class AnnularPolygonalCircle:
         a: float = 0.5,
         b: int = 3,
         base_sides: int = 12,
+        waveform: Union[WaveformType, str, Callable[[np.ndarray | float], np.ndarray]] = WaveformType.TRIANGLE,
     ):
         if r_inner <= 0:
             raise ValueError(f"Inner radius r_inner must be positive, got {r_inner}")
@@ -98,6 +82,8 @@ class AnnularPolygonalCircle:
         self.a = float(a)
         self.b = int(b)
         self.base_sides = int(base_sides)
+        self.waveform = waveform
+        self.phi_fn = get_waveform(waveform, zero_mean=True)
 
     @classmethod
     def from_center_and_width(
@@ -107,6 +93,7 @@ class AnnularPolygonalCircle:
         a: float = 0.5,
         b: int = 3,
         base_sides: int = 12,
+        waveform: Union[WaveformType, str, Callable[[np.ndarray | float], np.ndarray]] = WaveformType.TRIANGLE,
     ) -> AnnularPolygonalCircle:
         """Create an AnnularPolygonalCircle from center radius R0 and corridor width W."""
         half_w = 0.5 * corridor_width
@@ -121,6 +108,7 @@ class AnnularPolygonalCircle:
             a=a,
             b=b,
             base_sides=base_sides,
+            waveform=waveform,
         )
 
     @classmethod
@@ -131,6 +119,7 @@ class AnnularPolygonalCircle:
         a: float = 0.5,
         b: int = 3,
         base_sides: int = 12,
+        waveform: Union[WaveformType, str, Callable[[np.ndarray | float], np.ndarray]] = WaveformType.TRIANGLE,
     ) -> AnnularPolygonalCircle:
         """Create from center radius R0 and relative wiggle fraction w in (0, 1).
         
@@ -144,6 +133,7 @@ class AnnularPolygonalCircle:
             a=a,
             b=b,
             base_sides=base_sides,
+            waveform=waveform,
         )
 
     @property
@@ -162,7 +152,7 @@ class AnnularPolygonalCircle:
             ak = self.a ** k
             freq = self.b ** k
             u = freq * theta_arr / (2.0 * np.pi)
-            phi = zero_mean_triangle_wave(u)
+            phi = self.phi_fn(u)
             total += ak * phi
 
         return scale_factor * total
