@@ -433,3 +433,121 @@ def plot_corridor_sweep(
         fig.savefig(out_path, bbox_inches="tight")
 
     return fig
+
+
+def plot_phase_transition_and_rg(
+    b: int = 3,
+    out_path: str | Path | None = None,
+) -> plt.Figure:
+    """Four-panel publication-grade proof of the phase transition and RG flow."""
+    from polygonal_circle.renormalization import (
+        critical_a,
+        order_parameter,
+        order_parameter_derivative,
+        rg_flow_trajectory,
+        compute_scaling_collapse,
+    )
+
+    set_plot_style()
+    fig, axes = plt.subplots(2, 2, figsize=(11, 8.5))
+
+    a_c = critical_a(b)
+    a_grid = np.linspace(0.05, 0.75, 400)
+
+    # Panel A: Order Parameter Psi(a) vs a
+    psi_vals = [order_parameter(a, b) for a in a_grid]
+    ax_a = axes[0, 0]
+    ax_a.plot(a_grid, psi_vals, color="#2b6cb0", linewidth=2.0, label="Order Parameter $\\Psi(a) = D - 1$")
+    ax_a.axvline(a_c, color="#e53e3e", linestyle="--", linewidth=1.2, label=f"Critical Point $a_c = 1/{b}$")
+    ax_a.axvspan(0.05, a_c, color="#ebf8ff", alpha=0.6, label="Euclidean Phase ($\\Psi = 0$)")
+    ax_a.axvspan(a_c, 0.75, color="#feebc8", alpha=0.6, label="Fractal Phase ($\\Psi > 0$)")
+    
+    # Critical exponent annotation
+    eps_demo = 0.15
+    ax_a.annotate(
+        f"Critical Exponent $\\beta = 1$\n$\\Psi(a) \\propto (a - a_c)^1$",
+        xy=(a_c + 0.05, order_parameter(a_c + 0.05, b)),
+        xytext=(a_c + 0.12, 0.10),
+        arrowprops=dict(arrowstyle="->", color="#2c5282", lw=1.2),
+        fontsize=9,
+        bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="#cbd5e0", alpha=0.9),
+    )
+    ax_a.set_xlabel("Feature Shrinkage Parameter $a$")
+    ax_a.set_ylabel("Order Parameter $\\Psi(a) = D - 1$")
+    ax_a.set_title("(A) Continuous Phase Transition & Order Parameter")
+    ax_a.legend(loc="upper left", framealpha=0.9, fontsize=8)
+
+    # Panel B: Derivative Discontinuity dPsi/da vs a
+    ax_b = axes[0, 1]
+    a_left = np.linspace(0.05, a_c - 1e-4, 200)
+    a_right = np.linspace(a_c + 1e-4, 0.75, 200)
+    d_left = [order_parameter_derivative(a, b) for a in a_left]
+    d_right = [order_parameter_derivative(a, b) for a in a_right]
+
+    ax_b.plot(a_left, d_left, color="#2c7a7b", linewidth=2.0)
+    ax_b.plot(a_right, d_right, color="#2c7a7b", linewidth=2.0, label="Susceptibility / Metric $d\\Psi / da$")
+    ax_b.axvline(a_c, color="#e53e3e", linestyle="--", linewidth=1.2, label=f"Critical Point $a_c = 1/{b}$")
+    
+    jump_height = b / np.log(b)
+    ax_b.scatter([a_c], [0.0], color="#2c7a7b", facecolor="none", s=40, zorder=5)
+    ax_b.scatter([a_c], [jump_height], color="#2c7a7b", s=40, zorder=5)
+    ax_b.vlines(a_c, 0.0, jump_height, color="#dd6b20", linestyle=":", linewidth=1.5, label=f"Jump Discontinuity $\\Delta = {jump_height:.2f}$")
+
+    ax_b.set_xlabel("Feature Shrinkage Parameter $a$")
+    ax_b.set_ylabel("Derivative $d\\Psi / da$")
+    ax_b.set_title("(B) Jump Discontinuity (2nd-Order Phase Transition)")
+    ax_b.legend(loc="upper right", framealpha=0.9, fontsize=8)
+
+    # Panel C: Renormalization Group Flow Trajectories
+    ax_c = axes[1, 0]
+    n_steps = 7
+    step_axis = np.arange(n_steps + 1)
+    
+    test_as = [0.15, 0.25, a_c, 0.45, 0.55]
+    colors_c = ["#3182ce", "#4299e1", "#38a169", "#ed8936", "#e53e3e"]
+    for a_val, col in zip(test_as, colors_c):
+        traj = rg_flow_trajectory(a_val, b=b, initial_perturbation=1.0, steps=n_steps)
+        lbl = f"$a={a_val:.2f}$ ({'IR fixed point' if a_val < a_c else ('Marginal' if a_val == a_c else 'UV fixed point')})"
+        ax_c.plot(step_axis, traj, marker="o", markersize=3, color=col, label=lbl)
+
+    ax_c.set_yscale("log")
+    ax_c.axhline(1.0, color="#718096", linestyle=":", alpha=0.7)
+    ax_c.set_xlabel("RG Coarse-Graining Scale Level $n$")
+    ax_c.set_ylabel("Perturbation Scale $\\Delta P_n / \\Delta P_0$")
+    ax_c.set_title("(C) Renormalization Group (RG) Trajectories")
+    ax_c.legend(loc="lower left", framealpha=0.9, fontsize=7.5)
+
+    # Panel D: Universal Data Collapse
+    ax_d = axes[1, 1]
+    collapse_data = compute_scaling_collapse(
+        a_values=[0.40, 0.45, 0.50, 0.55, 0.60],
+        levels=[3, 4, 5, 6, 7],
+        b=b,
+        eta=0.1,
+    )
+    
+    unique_labels = sorted(list(set(collapse_data.labels)))
+    colors_d = plt.cm.plasma(np.linspace(0.1, 0.85, len(unique_labels)))
+    
+    for lbl, col in zip(unique_labels, colors_d):
+        mask = [l == lbl for l in collapse_data.labels]
+        x_sub = collapse_data.scaling_variable_x[mask]
+        y_sub = collapse_data.rescaled_excess_perimeter_y[mask]
+        ax_d.plot(x_sub, y_sub, marker="s", markersize=4, color=col, label=lbl)
+
+    ax_d.set_xlabel("Recursion Level $n$")
+    ax_d.set_ylabel("Rescaled Perimeter $(P_n - P_0) \\cdot b^{-n\\Psi(a)}$")
+    ax_d.set_title("(D) Universal Scaling Master Curve")
+    ax_d.legend(loc="upper right", framealpha=0.9, fontsize=8)
+
+    fig.suptitle(
+        f"Statistical Physics of Recursive Circles: Phase Transition, RG Flow, and Universal Scaling",
+        y=1.02,
+    )
+    plt.tight_layout()
+
+    if out_path:
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out_path, bbox_inches="tight")
+
+    return fig

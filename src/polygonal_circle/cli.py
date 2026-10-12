@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import math
 import rich
 from rich.console import Console
 from rich.table import Table
@@ -16,9 +17,11 @@ from polygonal_circle.plotting import (
     plot_corridor_sweep,
     plot_macroscopic_vs_microscopic,
     plot_multilevel_shapes,
+    plot_phase_transition_and_rg,
     plot_richardson_crossover,
     plot_scaling_regimes,
 )
+from polygonal_circle.renormalization import classify_phase, critical_a
 
 app = typer.Typer(
     name="polygonal-circle",
@@ -245,6 +248,43 @@ def wiggle_sweep(
     console.print(table)
 
 
+@app.command("phase-transition")
+def phase_transition(
+    b: int = typer.Option(3, "-b", help="Frequency multiplier b"),
+):
+    """Display the exact statistical physics phase diagram, RG eigenvalues, and order parameters."""
+    a_c = critical_a(b)
+    test_as = [0.10, 0.20, 0.28, a_c, 0.38, 0.50, 0.60, 0.70]
+
+    console.print(f"[bold cyan]Statistical Physics Phase Diagram & RG Classification (b={b})[/bold cyan]")
+    console.print(f"  Critical Threshold: a_c = 1/{b} = [bold green]{a_c:.4f}[/bold green]")
+    console.print(f"  Order Parameter:    Psi(a) = D - 1 = max(0, ln({b}a) / ln({b}))")
+    console.print(f"  Critical Exponent:  beta = 1  (Psi ~ (a - a_c)^1)")
+    console.print(f"  Derivative Jump:    Delta(dPsi/da) = {b}/ln({b}) = [bold green]{b/math.log(b):.4f}[/bold green] at a_c\n")
+
+    table = Table(title=f"Renormalization Group (RG) States across Parameter a")
+    table.add_column("a", justify="center")
+    table.add_column("RG Eigenvalue lambda = b*a", justify="right")
+    table.add_column("RG Relevance", justify="left")
+    table.add_column("Phase", justify="left")
+    table.add_column("Order Parameter Psi", justify="right")
+    table.add_column("dPsi / da", justify="right")
+
+    for a_val in test_as:
+        st = classify_phase(a_val, b)
+        lam_style = "green" if st.rg_eigenvalue < 1.0 else ("yellow" if abs(st.rg_eigenvalue - 1.0) < 1e-12 else "red")
+        table.add_row(
+            f"{a_val:.4f}",
+            f"[{lam_style}]{st.rg_eigenvalue:.4f}[/{lam_style}]",
+            st.relevance.value,
+            st.phase_name,
+            f"{st.order_parameter:.4f}",
+            f"{st.order_parameter_derivative:.4f}",
+        )
+
+    console.print(table)
+
+
 @app.command()
 def plot(
     output_dir: str = typer.Option("assets", "-o", "--output-dir", help="Directory to save figures"),
@@ -290,6 +330,11 @@ def plot(
     p6 = out_dir / "corridor_sweep.png"
     plot_corridor_sweep(center_radius=1.0, widths=[0.40, 0.20, 0.10, 0.03], level=4, a=a, out_path=p6)
     console.print(f"  ✓ Saved corridor width knob sweep: [green]{p6}[/green]")
+
+    # 7. Phase transition & RG flow
+    p7 = out_dir / "phase_transition.png"
+    plot_phase_transition_and_rg(b=3, out_path=p7)
+    console.print(f"  ✓ Saved phase transition & RG flow: [green]{p7}[/green]")
 
     console.print(f"[bold green]Done! All figures successfully generated.[/bold green]")
 

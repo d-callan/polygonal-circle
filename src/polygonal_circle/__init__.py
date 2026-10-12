@@ -9,6 +9,15 @@ from polygonal_circle.annulus import (
     AnnularConfinementReport,
     zero_mean_triangle_wave,
 )
+from polygonal_circle.renormalization import (
+    OperatorRelevance,
+    PhaseState,
+    classify_phase,
+    critical_a,
+    order_parameter,
+    order_parameter_derivative,
+    rg_flow_trajectory,
+)
 
 __version__ = "0.1.0"
 __all__ = [
@@ -22,4 +31,11 @@ __all__ = [
     "LevelMetric",
     "AnnularPolygonalCircle",
     "AnnularConfinementReport",
+    "OperatorRelevance",
+    "PhaseState",
+    "classify_phase",
+    "critical_a",
+    "order_parameter",
+    "order_parameter_derivative",
+    "rg_flow_trajectory",
 ]

@@ -63,7 +63,10 @@ polygonal-circle annulus -R 1.0 -W 0.20 -a 0.5 -L 5
 # 5. Sweep the corridor width knob ("wiggle room") from wide to razor-thin
 polygonal-circle wiggle-sweep -R 1.0 -L 4
 
-# 6. Generate publication-quality figures
+# 6. View the exact statistical physics phase diagram and RG eigenvalues
+polygonal-circle phase-transition -b 3
+
+# 7. Generate publication-quality figures
 polygonal-circle plot -o assets
 ```
 
@@ -87,15 +90,25 @@ polygonal-circle plot -o assets
 ### 6. Wiggle Room Knob Sweep (Narrowing Annular Corridor)
 ![Corridor Width Sweep](assets/corridor_sweep.png)
 
-## Empirical Findings
+### 7. Phase Transition, Renormalization Group, & Universal Scaling
+![Phase Transition & RG Flow](assets/phase_transition.png)
 
-1. **Envelope Confinement**: At all levels $n$, $r_n(\theta) \le R$ and all polygonal edges remain strictly inside the circular disk.
-2. **Perimeter Divergence**: For $a = 0.50$, the perimeter grows from $6.000$ at $n=0$ to $26.118$ at $n=11$, with the growth ratio $P_{n+1}/P_n \to 3a = 1.500$.
-3. **Area Boundedness**: The enclosed area converges to $A_\infty \approx 2.837 < \pi R^2 \approx 3.14159$.
-4. **Scale Crossover**:
+## Empirical Findings & Theoretical Proofs
+
+See [PHASE_TRANSITIONS_AND_RENORMALIZATION.md](PHASE_TRANSITIONS_AND_RENORMALIZATION.md) for the complete statistical physics dictionary, mathematical proofs, and RG derivations.
+
+1. **Continuous (Second-Order) Phase Transition**: The excess fractal dimension $\Psi(a) = D(a) - 1$ acts as an exact order parameter, continuous everywhere, with a linear critical exponent $\beta = 1$ ($\Psi \propto (a - a_c)^1$) and a finite jump discontinuity in the derivative $\Delta(d\Psi/da) = b / \ln b \approx 2.7307$ at $a_c = 1/3$.
+2. **Renormalization Group (RG) Fixed Points**:
+   - $a < 1/3$: Eigenvalue $\lambda = 3a < 1$ (irrelevant operator). Trajectories flow to the stable Infrared (IR) fixed point: the smooth Euclidean circle.
+   - $a = 1/3$: Marginal operator ($\lambda = 1$). Constant arithmetic perimeter increments $\Delta P \approx 0.006$ per scale.
+   - $a > 1/3$: Relevant operator ($\lambda = 3a > 1$). Flows to the Ultraviolet (UV) non-rectifiable fractal boundary.
+3. **Envelope Confinement**: At all levels $n$, $r_n(\theta) \le R$ and all polygonal edges remain strictly inside the circular disk.
+4. **Perimeter Divergence**: For $a = 0.50$, the perimeter grows from $6.000$ at $n=0$ to $26.118$ at $n=11$, with the growth ratio $P_{n+1}/P_n \to 3a = 1.500$.
+5. **Area Boundedness**: The enclosed area converges to $A_\infty \approx 2.837 < \pi R^2 \approx 3.14159$.
+6. **Scale Crossover**:
    - Coarse scale fit ($n=1\dots 4$): $D \approx 1.005$ (looks like a standard Euclidean circle).
    - Fine scale fit ($n=7\dots 11$): $D \approx 1.365$ (converges to theoretical dimension $D = 1 + \log(1.5)/\log(3) \approx 1.369$).
-5. **Isoperimetric Collapse**: The isoperimetric quotient $Q = 4\pi A / P^2$ collapses towards $0$ as $n \to \infty$, demonstrating the transition from Euclidean circle to fractal boundary.
+7. **Isoperimetric Collapse**: The isoperimetric quotient $Q = 4\pi A / P^2$ collapses towards $0$ as $n \to \infty$, demonstrating the transition from Euclidean circle to fractal boundary.
 
 ## Testing
 
