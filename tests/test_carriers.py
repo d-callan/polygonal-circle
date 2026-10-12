@@ -7,8 +7,11 @@ import pytest
 from polygonal_circle.carriers import (
     CircleCarrier,
     EllipseCarrier,
+    RegularPolygonCarrier,
+    SquareCarrier,
     SuperellipseCarrier,
     TrefoilCarrier,
+    TriangleCarrier,
 )
 from polygonal_circle.observer import ScaleSpaceObserver
 
@@ -52,6 +55,54 @@ def test_trefoil_carrier():
     assert t.name == "trefoil"
     expected_area = math.pi * (1.0**2) * (1.0 + 0.5 * (0.15**2))
     assert math.isclose(t.exact_area(), expected_area, rel_tol=1e-6)
+
+
+def test_square_carrier_exact():
+    sq = SquareCarrier(inradius=1.0)
+    assert sq.name == "square"
+    assert math.isclose(sq.exact_perimeter(), 8.0, rel_tol=1e-7)
+    assert math.isclose(sq.exact_area(), 4.0, rel_tol=1e-7)
+    assert math.isclose(sq.isoperimetric_quotient(), math.pi / 4.0, rel_tol=1e-7)
+
+
+def test_triangle_carrier_exact():
+    tri = TriangleCarrier(inradius=1.0)
+    assert tri.name == "triangle"
+    expected_p = 6.0 * math.sqrt(3.0)
+    expected_a = 3.0 * math.sqrt(3.0)
+    expected_q = math.pi * math.sqrt(3.0) / 9.0
+    assert math.isclose(tri.exact_perimeter(), expected_p, rel_tol=1e-7)
+    assert math.isclose(tri.exact_area(), expected_a, rel_tol=1e-7)
+    assert math.isclose(tri.isoperimetric_quotient(), expected_q, rel_tol=1e-7)
+
+
+def test_polygon_corner_rounding_and_optimal_window():
+    """Verify corner rounding at large sigma and fractal divergence at small sigma for square & triangle."""
+    for poly in [SquareCarrier(inradius=1.0), TriangleCarrier(inradius=1.0)]:
+        obs = ScaleSpaceObserver.from_carrier(
+            carrier=poly,
+            eta=0.10,
+            a=0.50,
+            b=3,
+            level=7,
+            num_points=4096,
+        )
+
+        p_exact = poly.exact_perimeter()
+
+        # Macro: corners rounded -> P < P_exact
+        macro = obs.observe(sigma=0.20)
+        assert macro.perimeter < p_exact, f"{poly.name} expected corner deficit at sigma=0.20"
+
+        # Optimal observer window: sigma ~ 0.05 rad recovers Euclidean perimeter to < 2.5%
+        meso = obs.observe(sigma=0.05)
+        rel_err = abs(meso.perimeter - p_exact) / p_exact
+        assert rel_err < 0.025, f"{poly.name} failed recovery in optimal window: err={rel_err:.4e}"
+
+        # Micro: fractal teeth -> P > P_exact
+        micro = obs.observe(sigma=0.005)
+        assert micro.perimeter > p_exact, f"{poly.name} expected fractal divergence at sigma=0.005"
+        assert micro.perimeter > meso.perimeter
 
 
 @pytest.mark.parametrize(

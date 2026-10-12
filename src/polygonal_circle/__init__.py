@@ -5,8 +5,11 @@ from polygonal_circle.carriers import (
     CircleCarrier,
     EllipseCarrier,
     ParametricCarrier,
+    RegularPolygonCarrier,
+    SquareCarrier,
     SuperellipseCarrier,
     TrefoilCarrier,
+    TriangleCarrier,
 )
 from polygonal_circle.waves import (
     WaveformType,
@@ -53,6 +56,9 @@ __all__ = [
     "EllipseCarrier",
     "SuperellipseCarrier",
     "TrefoilCarrier",
+    "RegularPolygonCarrier",
+    "SquareCarrier",
+    "TriangleCarrier",
     "WaveformType",
     "get_waveform",
     "triangle_wave",

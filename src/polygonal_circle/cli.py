@@ -15,8 +15,11 @@ from polygonal_circle.attractor import compute_lyapunov_spectrum
 from polygonal_circle.carriers import (
     CircleCarrier,
     EllipseCarrier,
+    RegularPolygonCarrier,
+    SquareCarrier,
     SuperellipseCarrier,
     TrefoilCarrier,
+    TriangleCarrier,
 )
 from polygonal_circle.model import PolygonalCircle
 from polygonal_circle.observer import ScaleSpaceObserver
@@ -28,6 +31,7 @@ from polygonal_circle.plotting import (
     plot_multilevel_shapes,
     plot_observer_scale_space,
     plot_phase_transition_and_rg,
+    plot_polygonal_scale_space,
     plot_richardson_crossover,
     plot_scaling_regimes,
     plot_strange_attractor,
@@ -511,6 +515,59 @@ def carriers_comparison(
     console.print(table)
 
 
+@app.command("polygons")
+def polygons_sweep(
+    a: float = typer.Option(0.50, "-a", help="Shrinkage factor a"),
+    b: int = typer.Option(3, "-b", help="Frequency multiplier b"),
+    eta: float = typer.Option(0.10, "--eta", help="Irregularity amplitude"),
+    level: int = typer.Option(7, "-L", "--level", help="Microscopic recursion level"),
+):
+    """Demonstrate the competition between corner rounding and fractal divergence on polygons (square & triangle)."""
+    sq = SquareCarrier(inradius=1.0)
+    tri = TriangleCarrier(inradius=1.0)
+
+    obs_sq = ScaleSpaceObserver.from_carrier(sq, eta=eta, a=a, b=b, level=level, num_points=4096)
+    obs_tri = ScaleSpaceObserver.from_carrier(tri, eta=eta, a=a, b=b, level=level, num_points=4096)
+
+    sigmas = [0.25, 0.15, 0.10, 0.05, 0.03, 0.01, 0.005, 0.001]
+
+    console.print("[bold cyan]Polygonal Scale-Space Crossover: Square & Triangle[/bold cyan]")
+    console.print(f"  Exact Square Perimeter: {sq.exact_perimeter():.4f} | Exact Triangle Perimeter: {tri.exact_perimeter():.4f}\n")
+
+    table = Table(title="Polygonal Recovery Across Scale-Space Apertures")
+    table.add_column("Observer Aperture sigma", justify="right")
+    table.add_column("Square P_obs", justify="right")
+    table.add_column("Square Error", justify="right")
+    table.add_column("Triangle P_obs", justify="right")
+    table.add_column("Triangle Error", justify="right")
+    table.add_column("Dominant Effect", justify="left")
+
+    for s in sigmas:
+        o_sq = obs_sq.observe(s)
+        o_tri = obs_tri.observe(s)
+
+        err_sq = abs(o_sq.perimeter - sq.exact_perimeter()) / sq.exact_perimeter() * 100.0
+        err_tri = abs(o_tri.perimeter - tri.exact_perimeter()) / tri.exact_perimeter() * 100.0
+
+        if s >= 0.10:
+            regime = "[blue]Corner Rounding Deficit (P < P0)[/blue]"
+        elif 0.03 <= s <= 0.07:
+            regime = "[bold green]Optimal Observer Window (Error < 2%)[/bold green]"
+        else:
+            regime = "[red]Fractal Divergence (P > P0)[/red]"
+
+        table.add_row(
+            f"{s:.4f}",
+            f"{o_sq.perimeter:.4f}",
+            f"{err_sq:.2f}%",
+            f"{o_tri.perimeter:.4f}",
+            f"{err_tri:.2f}%",
+            regime,
+        )
+
+    console.print(table)
+
+
 @app.command()
 def plot(
     output_dir: str = typer.Option("assets", "-o", "--output-dir", help="Directory to save figures"),
@@ -581,6 +638,11 @@ def plot(
     p11 = out_dir / "multi_carrier_scale_space.png"
     plot_multi_carrier_scale_space(eta=eta, a=a, b=3, level=7, out_path=p11)
     console.print(f"  ✓ Saved multi-carrier Sobolev projection: [green]{p11}[/green]")
+
+    # 12. Polygonal scale-space competition (corner rounding vs fractal divergence)
+    p12 = out_dir / "polygonal_scale_space.png"
+    plot_polygonal_scale_space(eta=eta, a=a, b=3, level=7, out_path=p12)
+    console.print(f"  ✓ Saved polygonal scale-space competition: [green]{p12}[/green]")
 
     console.print(f"[bold green]Done! All figures successfully generated.[/bold green]")
 

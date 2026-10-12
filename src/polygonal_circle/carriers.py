@@ -143,3 +143,51 @@ class TrefoilCarrier(ParametricCarrier):
         dx = np.roll(xs, -1) - xs
         dy = np.roll(ys, -1) - ys
         return float(np.sum(np.sqrt(dx**2 + dy**2)))
+
+
+class RegularPolygonCarrier(ParametricCarrier):
+    """Exact regular N-sided polygon with inradius r_in."""
+
+    def __init__(self, sides: int = 4, inradius: float = 1.0, name: str | None = None):
+        if sides < 3:
+            raise ValueError(f"Polygon must have at least 3 sides, got {sides}")
+        if inradius <= 0:
+            raise ValueError(f"Inradius must be positive, got {inradius}")
+        self.sides = int(sides)
+        self.r_in = float(inradius)
+        self.name = name or f"polygon_{sides}"
+        self.sector_angle = 2.0 * math.pi / self.sides
+
+    def radius_at(self, theta: np.ndarray) -> np.ndarray:
+        # Local angle from edge midpoint: theta_loc in [-pi/N, pi/N]
+        theta_arr = np.asarray(theta, dtype=float)
+        theta_loc = np.mod(theta_arr, self.sector_angle) - (self.sector_angle / 2.0)
+        return self.r_in / np.cos(theta_loc)
+
+    def exact_perimeter(self) -> float:
+        """Exact Euclidean perimeter: 2 * N * r_in * tan(pi / N)."""
+        return float(2.0 * self.sides * self.r_in * math.tan(math.pi / self.sides))
+
+    def exact_area(self) -> float:
+        """Exact Euclidean area: N * r_in^2 * tan(pi / N)."""
+        return float(self.sides * (self.r_in**2) * math.tan(math.pi / self.sides))
+
+    def corner_rounding_deficit(self, sigma: float) -> float:
+        """First-order asymptotic perimeter loss due to corner mollification at scale sigma."""
+        # Corner tip deficit scales as - 2 * N * r_in * (tan(pi/N) - pi/N) * sigma
+        alpha = math.pi / self.sides
+        return float(-2.0 * self.sides * self.r_in * (math.tan(alpha) - alpha) * sigma)
+
+
+class SquareCarrier(RegularPolygonCarrier):
+    """Exact Euclidean square (N=4) with inradius r_in (side L = 2 * r_in)."""
+
+    def __init__(self, inradius: float = 1.0):
+        super().__init__(sides=4, inradius=inradius, name="square")
+
+
+class TriangleCarrier(RegularPolygonCarrier):
+    """Exact Euclidean equilateral triangle (N=3) with inradius r_in."""
+
+    def __init__(self, inradius: float = 1.0):
+        super().__init__(sides=3, inradius=inradius, name="triangle")
