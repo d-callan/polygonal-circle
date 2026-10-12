@@ -21,10 +21,22 @@ from polygonal_circle.carriers import (
     TrefoilCarrier,
     TriangleCarrier,
 )
+from polygonal_circle.descriptors import (
+    CrescentCarrier,
+    FourierDescriptorCarrier,
+    KidneyBeanCarrier,
+)
 from polygonal_circle.model import PolygonalCircle
 from polygonal_circle.observer import ScaleSpaceObserver
+from polygonal_circle.planar import (
+    PlanarScaleSpaceObserver,
+    RadialCarrierAdapter,
+    estimate_sigma_star,
+    estimate_sigma_star_oracle,
+)
 from polygonal_circle.plotting import (
     plot_annular_circle,
+    plot_arbitrary_scale_space,
     plot_corridor_sweep,
     plot_macroscopic_vs_microscopic,
     plot_multi_carrier_scale_space,
@@ -403,7 +415,7 @@ def observer_single(
     console.print(f"[bold cyan]Independent Observer Measurement (Resolution aperture sigma = {sigma:.4f} rad)[/bold cyan]")
     console.print(f"  Observed Mean Radius R_obs:      [bold]{o.mean_radius:.5f}[/bold]")
     console.print(f"  Observed Perimeter P_obs:        [bold]{o.perimeter:.5f}[/bold]")
-    console.print(f"  Observed Enclosed Area A_obs:     [bold]{o.area:.5f}[/bold]")
+    console.print(f"  Observed Enclosed Area A_obs:     [bold]{o.area:.5f}[/bold] (target A0 = {o.target_area:.5f}, rel err = {o.area_relative_error * 100:.2f}%)")
     console.print(f"  Apparent Circumference Ratio pi: [bold green]{o.pi_obs:.5f}[/bold green] (vs Euclidean pi = {math.pi:.5f})")
     console.print(f"  Isoperimetric Quotient Q_obs:    [bold green]{o.isoperimetric_quotient:.5f}[/bold green] (Circle maximum = 1.00000)")
     console.print(f"  Apparent Dimension D_obs:        [bold]{o.apparent_dimension:.4f}[/bold]")
@@ -437,6 +449,8 @@ def observer_sweep(
     table.add_column("Perimeter P", justify="right")
     table.add_column("Observed pi", justify="right")
     table.add_column("|pi - pi_Euc|", justify="right")
+    table.add_column("Area A", justify="right")
+    table.add_column("|A - A0| / A0", justify="right")
     table.add_column("Isoperimetric Q", justify="right")
     table.add_column("Apparent D", justify="right")
     table.add_column("Perceived Regime", justify="left")
@@ -456,6 +470,8 @@ def observer_sweep(
             f"{o.perimeter:.4f}",
             f"{o.pi_obs:.5f}",
             f"{diff_pi:.5f}",
+            f"{o.area:.4f}",
+            f"{o.area_relative_error * 100:.2f}%",
             f"{o.isoperimetric_quotient:.5f}",
             f"{o.apparent_dimension:.4f}",
             regime,
@@ -488,6 +504,7 @@ def carriers_comparison(
     table.add_column("Exact Euclidean Perimeter", justify="right")
     table.add_column("Measured Perimeter P_obs", justify="right")
     table.add_column("Perimeter Rel Error", justify="right")
+    table.add_column("Area Rel Error", justify="right")
     table.add_column("Exact Isoperimetric Q0", justify="right")
     table.add_column("Measured Q_obs", justify="right")
     table.add_column("Apparent D", justify="right")
@@ -506,6 +523,7 @@ def carriers_comparison(
             f"{p_target:.4f}",
             f"{o.perimeter:.4f}",
             f"{o.perimeter_relative_error * 100:.2f}%",
+            f"{o.area_relative_error * 100:.2f}%",
             f"{q_target:.4f}",
             f"{o.isoperimetric_quotient:.4f}",
             f"{o.apparent_dimension:.4f}",
@@ -566,6 +584,128 @@ def polygons_sweep(
         )
 
     console.print(table)
+
+
+_PLANAR_SHAPES = {
+    "circle": lambda: RadialCarrierAdapter(CircleCarrier(radius=1.0)),
+    "ellipse": lambda: RadialCarrierAdapter(EllipseCarrier(semi_major=1.25, semi_minor=0.80)),
+    "square": lambda: RadialCarrierAdapter(SquareCarrier(inradius=1.0)),
+    "triangle": lambda: RadialCarrierAdapter(TriangleCarrier(inradius=1.0)),
+    "trefoil": lambda: RadialCarrierAdapter(TrefoilCarrier(base_radius=1.0, modulation=0.15)),
+    "crescent": lambda: CrescentCarrier(scale=1.0, dent=1.2),
+    "kidney": lambda: KidneyBeanCarrier(),
+}
+
+
+def _load_contour_points(path: str) -> tuple:
+    """Load an ordered boundary point cloud from .npy (Nx2) or .csv (x,y cols)."""
+    import numpy as np
+
+    p = Path(path)
+    if p.suffix == ".npy":
+        arr = np.load(p)
+        return arr[:, 0], arr[:, 1]
+    # CSV: try headered x,y first, fall back to first two columns
+    try:
+        arr = np.genfromtxt(p, delimiter=",", names=True)
+        return arr["x"], arr["y"]
+    except (ValueError, KeyError):
+        arr = np.loadtxt(p, delimiter=",", skiprows=1)
+        return arr[:, 0], arr[:, 1]
+
+
+def _resolve_planar_carrier(shape: str, input_path: str | None, modes: int):
+    """Build a PlanarCarrier from a named shape or an ingested point cloud."""
+    if input_path is not None:
+        xs, ys = _load_contour_points(input_path)
+        return FourierDescriptorCarrier.from_points(xs, ys, num_modes=modes)
+    if shape not in _PLANAR_SHAPES:
+        raise typer.BadParameter(
+            f"Unknown shape '{shape}'. Choose from: {', '.join(sorted(_PLANAR_SHAPES))}"
+        )
+    return _PLANAR_SHAPES[shape]()
+
+
+@app.command("contour-sweep")
+def contour_sweep(
+    shape: str = typer.Option("crescent", "--shape", help="Carrier shape name or --input a point cloud"),
+    input_path: str | None = typer.Option(None, "-i", "--input", help="Boundary points .npy (Nx2) or .csv (x,y)"),
+    modes: int = typer.Option(48, "--modes", help="Fourier descriptor modes for --input ingestion"),
+    a: float = typer.Option(0.50, "-a", help="Shrinkage factor a"),
+    b: int = typer.Option(3, "-b", help="Frequency multiplier b"),
+    eta: float = typer.Option(0.05, "--eta", help="Normal-field ripple amplitude (fraction of L/2pi)"),
+    level: int = typer.Option(6, "-L", "--level", help="Microscopic recursion level"),
+):
+    """Sweep observer apertures on an arbitrary (possibly non-star-shaped) planar contour."""
+    import numpy as np
+
+    carrier = _resolve_planar_carrier(shape, input_path, modes)
+    obs = PlanarScaleSpaceObserver(carrier, eta=eta, a=a, b=b, level=level, num_points=4096)
+    sigmas = np.logspace(-3.0, -0.15, 18)
+    sweep = obs.sweep_resolutions(sigmas)
+
+    s_star = estimate_sigma_star(sweep)
+    s_oracle = estimate_sigma_star_oracle(sweep)
+
+    console.print(f"[bold cyan]Planar Scale-Space Observer: {carrier.name}[/bold cyan]")
+    console.print(f"  Exact carrier P0 = {carrier.exact_perimeter():.4f} | A0 = {carrier.exact_area():.4f}")
+    console.print(f"  sigma* (data-driven plateau): [bold green]{s_star:.4f}[/bold green] | "
+                  f"sigma* (oracle): {s_oracle:.4f}\n")
+
+    table = Table(title=f"Perimeter & Area Recovery for '{carrier.name}'")
+    table.add_column("sigma", justify="right")
+    table.add_column("P(sigma)", justify="right")
+    table.add_column("|P-P0|/P0", justify="right")
+    table.add_column("A(sigma)", justify="right")
+    table.add_column("|A-A0|/A0", justify="right")
+    table.add_column("Q", justify="right")
+    table.add_column("D_app", justify="right")
+
+    for o in sweep:
+        marker = "*" if abs(o.sigma - s_star) < 1e-9 else " "
+        table.add_row(
+            f"{o.sigma:.4f}{marker}",
+            f"{o.perimeter:.4f}",
+            f"{o.perimeter_relative_error * 100:.2f}%",
+            f"{o.area:.4f}",
+            f"{o.area_relative_error * 100:.2f}%",
+            f"{o.isoperimetric_quotient:.4f}",
+            f"{o.apparent_dimension:.4f}",
+        )
+    console.print(table)
+
+
+@app.command("contour")
+def contour_single(
+    shape: str = typer.Option("crescent", "--shape", help="Carrier shape name or --input a point cloud"),
+    input_path: str | None = typer.Option(None, "-i", "--input", help="Boundary points .npy (Nx2) or .csv (x,y)"),
+    modes: int = typer.Option(48, "--modes", help="Fourier descriptor modes for --input ingestion"),
+    sigma: float | None = typer.Option(None, "-s", "--sigma", help="Observer aperture (arc-length units)"),
+    optimize: bool = typer.Option(False, "--optimize", help="Estimate sigma* data-driven and observe there"),
+    a: float = typer.Option(0.50, "-a", help="Shrinkage factor a"),
+    b: int = typer.Option(3, "-b", help="Frequency multiplier b"),
+    eta: float = typer.Option(0.05, "--eta", help="Normal-field ripple amplitude"),
+    level: int = typer.Option(6, "-L", "--level", help="Microscopic recursion level"),
+):
+    """Measure perimeter/area of an arbitrary contour at one aperture or the estimated optimum."""
+    import numpy as np
+
+    carrier = _resolve_planar_carrier(shape, input_path, modes)
+    obs = PlanarScaleSpaceObserver(carrier, eta=eta, a=a, b=b, level=level, num_points=4096)
+
+    if optimize or sigma is None:
+        sweep = obs.sweep_resolutions(np.logspace(-3.0, -0.15, 18))
+        sigma = estimate_sigma_star(sweep)
+        console.print(f"  Estimated optimal aperture sigma* = [bold green]{sigma:.4f}[/bold green]\n")
+
+    o = obs.observe(sigma)
+    console.print(f"[bold cyan]Planar Observer Measurement: {carrier.name} (sigma = {sigma:.4f})[/bold cyan]")
+    console.print(f"  Perimeter P_obs:  [bold]{o.perimeter:.4f}[/bold] (target {o.target_perimeter:.4f}, "
+                  f"rel err {o.perimeter_relative_error * 100:.2f}%)")
+    console.print(f"  Area A_obs:       [bold]{o.area:.4f}[/bold] (target {o.target_area:.4f}, "
+                  f"rel err {o.area_relative_error * 100:.2f}%)")
+    console.print(f"  Isoperimetric Q:  [bold]{o.isoperimetric_quotient:.4f}[/bold]")
+    console.print(f"  Apparent D:       [bold]{o.apparent_dimension:.4f}[/bold]")
 
 
 @app.command()
@@ -643,6 +783,11 @@ def plot(
     p12 = out_dir / "polygonal_scale_space.png"
     plot_polygonal_scale_space(eta=eta, a=a, b=3, level=7, out_path=p12)
     console.print(f"  ✓ Saved polygonal scale-space competition: [green]{p12}[/green]")
+
+    # 13. Arbitrary planar shapes (incl. non-star-shaped crescent & kidney)
+    p13 = out_dir / "arbitrary_scale_space.png"
+    plot_arbitrary_scale_space(eta=0.05, a=a, b=3, level=6, out_path=p13)
+    console.print(f"  ✓ Saved arbitrary-shape scale-space: [green]{p13}[/green]")
 
     console.print(f"[bold green]Done! All figures successfully generated.[/bold green]")
 

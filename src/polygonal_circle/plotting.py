@@ -1098,3 +1098,112 @@ def plot_polygonal_scale_space(
         fig.savefig(out_path, bbox_inches="tight")
 
     return fig
+
+
+def plot_arbitrary_scale_space(
+    eta: float = 0.05,
+    a: float = 0.50,
+    b: int = 3,
+    level: int = 6,
+    out_path: str | Path | None = None,
+) -> plt.Figure:
+    """Four-panel proof that arbitrary (incl. non-star-shaped) shapes are recovered by planar scale-space observation."""
+    from polygonal_circle.carriers import SquareCarrier
+    from polygonal_circle.descriptors import CrescentCarrier, KidneyBeanCarrier
+    from polygonal_circle.planar import (
+        PlanarScaleSpaceObserver,
+        RadialCarrierAdapter,
+        estimate_sigma_star,
+        estimate_sigma_star_oracle,
+    )
+
+    set_plot_style()
+    fig, axes = plt.subplots(2, 2, figsize=(11, 8.5))
+
+    carrier_list = [
+        (RadialCarrierAdapter(SquareCarrier(inradius=1.0)), "Square", "#dd6b20"),
+        (CrescentCarrier(scale=1.0, dent=1.2), "Crescent (non-star)", "#805ad5"),
+        (KidneyBeanCarrier(), "Kidney Bean", "#38a169"),
+    ]
+
+    observers = []
+    for carrier, label_name, col in carrier_list:
+        obs = PlanarScaleSpaceObserver(
+            carrier, eta=eta, a=a, b=b, level=level, num_points=4096
+        )
+        observers.append((carrier, label_name, col, obs))
+
+    # Panel A: carriers and their perturbed microscopic boundaries
+    ax_a = axes[0, 0]
+    for carrier, label_name, col, obs in observers:
+        base = carrier.sample(2048)
+        ax_a.plot(base.xs, base.ys, color=col, linestyle="--", linewidth=1.0, alpha=0.6)
+        ax_a.plot(obs.curve.xs, obs.curve.ys, color=col, linewidth=1.2, alpha=0.9, label=label_name)
+    ax_a.set_aspect("equal")
+    ax_a.set_title("(A) Arbitrary Carriers (incl. Non-Star-Shaped) + Microscopic Ripple")
+    ax_a.legend(loc="lower left", framealpha=0.9, fontsize=7.5)
+
+    sigmas = np.logspace(-3.0, -0.15, 28)
+    sweeps = [obs.sweep_resolutions(sigmas) for _, _, _, obs in observers]
+
+    # Panel B: perimeter and area recovery vs targets
+    ax_b = axes[0, 1]
+    for (carrier, label_name, col, obs), sweep in zip(observers, sweeps):
+        ax_b.plot(
+            [o.sigma for o in sweep],
+            [o.perimeter for o in sweep],
+            color=col, linewidth=1.8, label=label_name,
+        )
+        ax_b.axhline(carrier.exact_perimeter(), color=col, linestyle="--", linewidth=1.0, alpha=0.7)
+    ax_b.set_xscale("log")
+    ax_b.set_xlabel("Observer Aperture $\\sigma$ [arc-length units]")
+    ax_b.set_ylabel("Measured Perimeter $P(\\sigma)$")
+    ax_b.set_title("(B) Perimeter Recovery at Euclidean Carrier Value")
+    ax_b.legend(loc="upper right", framealpha=0.9, fontsize=7.5)
+
+    ax_c = axes[1, 0]
+    for (carrier, label_name, col, obs), sweep in zip(observers, sweeps):
+        ax_c.plot(
+            [o.sigma for o in sweep],
+            [o.area for o in sweep],
+            color=col, linewidth=1.8, label=label_name,
+        )
+        ax_c.axhline(carrier.exact_area(), color=col, linestyle="--", linewidth=1.0, alpha=0.7)
+    ax_c.set_xscale("log")
+    ax_c.set_xlabel("Observer Aperture $\\sigma$ [arc-length units]")
+    ax_c.set_ylabel("Measured Enclosed Area $A(\\sigma)$")
+    ax_c.set_title("(C) Area Recovery: $O(\\eta^2)$ Ripple Inflation Washed Out")
+    ax_c.legend(loc="upper right", framealpha=0.9, fontsize=7.5)
+
+    # Panel D: data-driven sigma* estimation vs oracle
+    ax_d = axes[1, 1]
+    for (carrier, label_name, col, obs), sweep in zip(observers, sweeps):
+        sweep_sorted = sorted(sweep, key=lambda o: o.sigma)
+        s_arr = np.array([o.sigma for o in sweep_sorted])
+        p_arr = np.array([o.perimeter for o in sweep_sorted])
+        slope = np.abs(np.gradient(np.log(p_arr), np.log(s_arr)))
+        s_star_data = estimate_sigma_star(sweep_sorted)
+        s_star_oracle = estimate_sigma_star_oracle(sweep_sorted)
+        ax_d.plot(s_arr, slope, color=col, linewidth=1.8, label=label_name)
+        ax_d.axvline(s_star_data, color=col, linestyle="-", linewidth=1.0, alpha=0.8)
+        ax_d.axvline(s_star_oracle, color=col, linestyle=":", linewidth=1.0, alpha=0.8)
+
+    ax_d.plot([], [], "k-", linewidth=1.0, label="$\\sigma^*$ plateau (data-driven)")
+    ax_d.plot([], [], "k:", linewidth=1.0, label="$\\sigma^*$ oracle (min err)")
+    ax_d.set_xscale("log")
+    ax_d.set_xlabel("Observer Aperture $\\sigma$ [arc-length units]")
+    ax_d.set_ylabel("$|d \\ln P / d \\ln \\sigma|$")
+    ax_d.set_title("(D) Optimal Window: Plateau Minimum vs Oracle")
+    ax_d.legend(loc="upper right", framealpha=0.9, fontsize=7.5)
+
+    fig.suptitle(
+        "Planar Scale-Space Observation: Euclidean Recovery for Arbitrary Shapes",
+        y=1.02,
+    )
+    plt.tight_layout()
+
+    if out_path:
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out_path, bbox_inches="tight")
+
+    return fig

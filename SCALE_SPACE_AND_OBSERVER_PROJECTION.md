@@ -164,10 +164,38 @@ Plotting the relative error $|P_\sigma - P_0| / P_0$ reveals a **clean V-curve**
 
 ---
 
-## 8. Verification Commands
+## 8. Arbitrary Planar Shapes: Beyond the Radial Graph
+
+The radial observer filters the scalar profile $r(\theta)$, which can only represent **star-shaped** curves. The planar extension (`planar.py`) replaces it with per-coordinate heat-kernel filtering of an arbitrary closed curve $\mathbf{x}(t) = (x(t), y(t))$ sampled uniformly in arc length:
+
+$$\widehat{G_\sigma}(k_m) = e^{-\sigma^2 k_m^2/2},\qquad k_m = \frac{2\pi m}{L}$$
+
+This gives an **exact semigroup** $G_{\sigma_1} * G_{\sigma_2} = G_{\sqrt{\sigma_1^2+\sigma_2^2}}$ and handles contours no radial function can represent. Two analytic carriers prove the point: `CrescentCarrier` ($x = \cos t + 1.2\cos 2t$, $y = \sin t$) and `KidneyBeanCarrier` — both non-star-shaped (rays through the dented direction hit the boundary twice), yet recovered in the observer window.
+
+### Corrected IR fixed point (important precision)
+
+Under *linear* coordinate diffusion, modes $k \ge 2$ die as $e^{-\sigma^2 k^2/2}$ but $k{=}1$ is a fixed shape — and any pure $k{=}1$ truncation is an **ellipse**. The IR fixed point of coordinate filtering is therefore the carrier's **first elliptic Fourier descriptor** ($Q \to Q_1 \le 1$), circular iff the carrier's first harmonic is. This is the linear shadow of Gage–Hamilton–Grayson; full circularization requires the nonlinear curvature flow.
+
+### Embeddedness clamp (corridor generalization)
+
+A normal-field displacement $d(s)$ folds the offset curve locally whenever $\kappa(s)\,d(s) \ge 1$. The perturbation is clamped to $0.9\,\rho(s)$, which guarantees an embedded boundary and suppresses ripple exactly at carrier corners ($\kappa \to \infty$).
+
+### Empirical validation (30 carrier × waveform rows)
+
+Output of `python benchmarks/run_arbitrary_validation.py` ($\eta=0.05$, $a=0.5$, $b=3$, level 6):
+
+- **Best perimeter error across all 30 rows: 0.72%** (crescent × multi_harmonic)
+- **Best area error across all 30 rows: 0.18%** (crescent × triangle)
+- The data-driven plateau estimator $\sigma^* = \arg\min |d\ln P/d\ln\sigma|$ consistently lands within a factor $\sim 2$ of the oracle minimum — no ground truth required.
+
+Zero-mean ripple also inflates area by the provable law $A(0)/A_0 = 1 + \eta^2\langle u^2\rangle$, which the test suite verifies to $<0.1\%$ and the filter then washes out.
+
+---
+
+## 9. Verification Commands
 
 ```bash
-# 1. Run observer, carrier, and polygon test suite (52 tests total)
+# 1. Run observer, carrier, polygon, and planar test suite (84 tests total)
 pytest tests/ -v
 
 # 2. Inspect single observer measurement
@@ -182,7 +210,18 @@ polygonal-circle carriers -a 0.50 --sigma 0.20
 # 5. Sweep polygonal scale-space (square and triangle corner-rounding competition)
 polygonal-circle polygons -a 0.50
 
-# 6. Generate all 12 publication-grade figures
-# Saves observer_scale_space.png, multi_carrier_scale_space.png, and polygonal_scale_space.png
+# 6. Sweep an arbitrary planar contour (non-star-shaped crescent default)
+polygonal-circle contour-sweep --shape crescent
+polygonal-circle contour --shape kidney --optimize
+
+# 7. Ingest an arbitrary boundary point cloud (.npy Nx2 or .csv x,y)
+polygonal-circle contour-sweep --input my_contour.csv --modes 48
+
+# 8. Reproduce the 30-row validation matrix
+python benchmarks/run_arbitrary_validation.py
+
+# 9. Generate all 13 publication-grade figures
+# Saves observer_scale_space.png, multi_carrier_scale_space.png,
+# polygonal_scale_space.png, and arbitrary_scale_space.png
 polygonal-circle plot -o assets
 ```

@@ -84,7 +84,16 @@ polygonal-circle carriers -a 0.50 --sigma 0.20
 # 12. Test sharp-cornered polygons (square & triangle) and the corner-rounding V-curve
 polygonal-circle polygons -a 0.50
 
-# 13. Generate publication-quality figures
+# 13. Sweep an arbitrary planar contour — incl. non-star-shaped crescent (impossible for the radial observer)
+polygonal-circle contour-sweep --shape crescent
+
+# 14. Measure a shape at the data-driven optimal aperture (no ground truth needed)
+polygonal-circle contour --shape kidney --optimize
+
+# 15. Ingest an arbitrary boundary point cloud (.npy Nx2 or .csv x,y) via Fourier descriptors
+polygonal-circle contour-sweep --input my_contour.csv --modes 48
+
+# 16. Generate publication-quality figures
 polygonal-circle plot -o assets
 ```
 
@@ -126,12 +135,16 @@ polygonal-circle plot -o assets
 ### 12. Polygonal Scale-Space Competition (Corner Rounding vs. Fractal Divergence)
 ![Polygonal Scale-Space](assets/polygonal_scale_space.png)
 
+### 13. Arbitrary Planar Shapes (Non-Star-Shaped Crescent & Kidney Bean)
+![Arbitrary Scale-Space](assets/arbitrary_scale_space.png)
+
 ## Empirical Findings & Theoretical Proofs
 
 - See [PHASE_TRANSITIONS_AND_RENORMALIZATION.md](PHASE_TRANSITIONS_AND_RENORMALIZATION.md) for the statistical physics dictionary, mathematical proofs, and RG derivations.
 - See [STRANGE_ATTRACTORS_AND_DYNAMICS.md](STRANGE_ATTRACTORS_AND_DYNAMICS.md) for the skew-product cylinder map, Lyapunov spectrum, and Kaplan–Yorke dimension.
 - See [UNIVERSALITY_AND_WAVEFORM_INVARIANCE.md](UNIVERSALITY_AND_WAVEFORM_INVARIANCE.md) for multi-waveform invariance proofs and scaling collapse.
 - See [SCALE_SPACE_AND_OBSERVER_PROJECTION.md](SCALE_SPACE_AND_OBSERVER_PROJECTION.md) for scale-space filtering proofs, multi-carrier recovery, and corner-rounding scaling.
+- See [PLAN_ARBITRARY_SHAPES.md](PLAN_ARBITRARY_SHAPES.md) for the arbitrary-shape extension plan, assessment, and evaluation criteria.
 
 1. **Polygonal Geometries & Corner-Rounding Competition**:
    - For polygons with sharp vertices (squares, triangles), scale-space observation balances two competing effects: corner rounding ($\Delta P \approx -2 N r_{\mathrm{in}} (\tan(\pi/N) - \pi/N) \sigma < 0$) and microscopic fractal divergence ($P_\sigma \to \infty$ as $\sigma \to 0$).
@@ -164,6 +177,7 @@ polygonal-circle plot -o assets
    - Coarse scale fit ($n=1\dots 4$): $D \approx 1.005$ (looks like a standard Euclidean circle).
    - Fine scale fit ($n=7\dots 11$): $D \approx 1.365$ (converges to theoretical dimension $D = 1 + \log(1.5)/\log(3) \approx 1.369$).
 12. **Isoperimetric Collapse**: The isoperimetric quotient $Q = 4\pi A / P^2$ collapses towards $0$ as $n \to \infty$, demonstrating the transition from Euclidean circle to fractal boundary.
+13. **Arbitrary Planar Shapes (Beyond Star-Shaped)**: Per-coordinate heat-kernel filtering on arc-length-sampled curves $\mathbf{x}(t)$ recovers perimeter and area for shapes no radial function $r(\theta)$ can represent (crescent, kidney bean): $\le 0.72\%$ perimeter and $\le 0.18\%$ area error across 30 carrier × waveform rows (`benchmarks/arbitrary_contour_validation.csv`). The IR fixed point of linear diffusion is the carrier's first elliptic Fourier descriptor; the embeddedness clamp $\kappa d < 1$ generalizes the corridor constraint to arbitrary carriers.
 
 ## Testing
 

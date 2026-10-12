@@ -209,3 +209,30 @@ The error landscape exhibits a clean V-curve, where the observer recovers the ex
 - **Triangle ($P_0 = 10.3923$)**: At $\sigma = 0.0500$, measured $P = 10.6046$ (**2.04% error**).
 - Equilateral triangles suffer higher corner loss than squares because acute $60^\circ$ corners lose more area than right $90^\circ$ corners under Gaussian mollification.
 
+---
+
+## 7. Arbitrary Planar Shapes (Beyond Star-Shaped Contours)
+
+The radial observer filters $r(\theta)$ and therefore only represents star-shaped curves. The planar extension replaces it with per-coordinate heat-kernel filtering of an arc-length-sampled closed curve $\mathbf{x}(t) = (x(t), y(t))$, $\widehat{G_\sigma}(k_m) = e^{-\sigma^2 k_m^2/2}$, which is an exact semigroup and admits arbitrary contours — including ones no radial function can express.
+
+### Non-star-shaped analytic carriers
+
+- **Crescent** ($x = \cos t + 1.2\cos 2t$, $y = \sin t$): rays through the dented direction intersect the boundary twice; `is_star_shaped()` fails by construction. Exact area $A_0 = \pi$ for every dent amplitude.
+- **Kidney Bean**: asymmetric non-convex contour, also non-star-shaped.
+- **Fourier descriptor ingestion**: arbitrary ordered point clouds are resampled to uniform arc length and truncated to $K$ modes, with closed-form area $A = \pi\sum_k k\,(a_k d_k - b_k c_k)$.
+
+### Embeddedness clamp
+
+A normal-field ripple $d(s)$ folds the boundary locally whenever $\kappa(s)\,d(s) \ge 1$; clamping to $0.9\,\rho(s)$ guarantees an embedded perturbed curve and suppresses ripple at carrier corners — the arbitrary-shape generalization of the annular corridor constraint.
+
+### Empirical validation (30 rows, `benchmarks/arbitrary_contour_validation.csv`)
+
+Across 6 carriers × 5 waveforms ($\eta = 0.05$, $a = 0.5$, $b = 3$, level 6):
+
+- **Best perimeter error $\le 0.72\%$** on every row; **best area error $\le 0.18\%$** on every row — including the crescent and kidney bean, which are *impossible inputs* for the radial observer.
+- **Provable area-inflation law verified**: zero-mean ripple gives $A(0)/A_0 = 1 + \eta^2\langle u^2\rangle$ before filtering (tested to $<0.1\%$), then the filter washes the bias out.
+- **IR fixed point precision**: under linear coordinate diffusion the normalized shape converges to the carrier's **first elliptic Fourier descriptor** ($Q \to Q_1 \le 1$) — circular iff the carrier's first harmonic is circular. This is the linear analog, not the full strength, of Gage–Hamilton–Grayson.
+- **Data-driven $\sigma^*$**: the plateau estimator $\arg\min_\sigma |d\ln P/d\ln\sigma|$ requires no ground truth and lands within $\sim 2\times$ of the oracle minimum.
+
+Reproduce: `polygonal-circle contour-sweep --shape crescent`, `polygonal-circle contour --shape kidney --optimize`, `python benchmarks/run_arbitrary_validation.py`.
+

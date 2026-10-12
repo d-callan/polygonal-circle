@@ -23,6 +23,8 @@ class ObserverObservation:
     apparent_dimension: float
     target_perimeter: float = 0.0
     perimeter_relative_error: float = 0.0
+    target_area: float = 0.0
+    area_relative_error: float = 0.0
 
 
 class ScaleSpaceObserver:
@@ -152,6 +154,7 @@ class ScaleSpaceObserver:
         apparent_dim = float(1.0 - d_log_p)
 
         rel_err = abs(perimeter - self.target_perimeter) / self.target_perimeter if self.target_perimeter > 0 else 0.0
+        area_err = abs(area - self.target_area) / self.target_area if self.target_area > 0 else 0.0
 
         return ObserverObservation(
             sigma=float(sigma),
@@ -163,6 +166,8 @@ class ScaleSpaceObserver:
             apparent_dimension=apparent_dim,
             target_perimeter=self.target_perimeter,
             perimeter_relative_error=rel_err,
+            target_area=self.target_area,
+            area_relative_error=area_err,
         )
 
     def sweep_resolutions(self, sigmas: Iterable[float]) -> list[ObserverObservation]:
