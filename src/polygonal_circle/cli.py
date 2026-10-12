@@ -12,12 +12,19 @@ import typer
 from polygonal_circle.analysis import PolygonalCircleAnalysis
 from polygonal_circle.annulus import AnnularPolygonalCircle
 from polygonal_circle.attractor import compute_lyapunov_spectrum
+from polygonal_circle.carriers import (
+    CircleCarrier,
+    EllipseCarrier,
+    SuperellipseCarrier,
+    TrefoilCarrier,
+)
 from polygonal_circle.model import PolygonalCircle
 from polygonal_circle.observer import ScaleSpaceObserver
 from polygonal_circle.plotting import (
     plot_annular_circle,
     plot_corridor_sweep,
     plot_macroscopic_vs_microscopic,
+    plot_multi_carrier_scale_space,
     plot_multilevel_shapes,
     plot_observer_scale_space,
     plot_phase_transition_and_rg,
@@ -453,6 +460,57 @@ def observer_sweep(
     console.print(table)
 
 
+@app.command("carriers")
+def carriers_comparison(
+    a: float = typer.Option(0.50, "-a", help="Shrinkage factor a"),
+    b: int = typer.Option(3, "-b", help="Frequency multiplier b"),
+    eta: float = typer.Option(0.10, "--eta", help="Irregularity amplitude"),
+    level: int = typer.Option(7, "-L", "--level", help="Microscopic recursion level"),
+    sigma: float = typer.Option(0.20, "-s", "--sigma", help="Observer resolution in scale-space window"),
+):
+    """Demonstrate Sobolev projection across 4 diverse Euclidean carriers (circle, ellipse, squircle, trefoil)."""
+    carrier_list = [
+        CircleCarrier(radius=1.0),
+        EllipseCarrier(semi_major=1.25, semi_minor=0.80),
+        SuperellipseCarrier(semi_major=1.0, semi_minor=1.0, exponent=4.0),
+        TrefoilCarrier(base_radius=1.0, modulation=0.15),
+    ]
+
+    console.print("[bold cyan]Sobolev Projection: Euclidean Carriers under Fractal Perturbation[/bold cyan]")
+    console.print(f"  Observer window aperture: sigma = {sigma:.3f} rad | Perturbation: a={a}, b={b}, eta={eta}, level={level}\n")
+
+    table = Table(title="Multi-Carrier Scale-Space Observer Recovery")
+    table.add_column("Carrier Shape", justify="left")
+    table.add_column("Exact Euclidean Perimeter", justify="right")
+    table.add_column("Measured Perimeter P_obs", justify="right")
+    table.add_column("Perimeter Rel Error", justify="right")
+    table.add_column("Exact Isoperimetric Q0", justify="right")
+    table.add_column("Measured Q_obs", justify="right")
+    table.add_column("Apparent D", justify="right")
+    table.add_column("Status", justify="left")
+
+    for c in carrier_list:
+        obs = ScaleSpaceObserver.from_carrier(c, eta=eta, a=a, b=b, level=level, num_points=4096)
+        o = obs.observe(sigma)
+        p_target = c.exact_perimeter()
+        q_target = c.isoperimetric_quotient()
+
+        status = "[green]Euclidean Recovered[/green]" if o.perimeter_relative_error < 0.02 else "[yellow]Approximated[/yellow]"
+
+        table.add_row(
+            c.name.capitalize(),
+            f"{p_target:.4f}",
+            f"{o.perimeter:.4f}",
+            f"{o.perimeter_relative_error * 100:.2f}%",
+            f"{q_target:.4f}",
+            f"{o.isoperimetric_quotient:.4f}",
+            f"{o.apparent_dimension:.4f}",
+            status,
+        )
+
+    console.print(table)
+
+
 @app.command()
 def plot(
     output_dir: str = typer.Option("assets", "-o", "--output-dir", help="Directory to save figures"),
@@ -518,6 +576,11 @@ def plot(
     p10 = out_dir / "observer_scale_space.png"
     plot_observer_scale_space(a=a, b=3, level=7, out_path=p10)
     console.print(f"  ✓ Saved observer scale-space projection: [green]{p10}[/green]")
+
+    # 11. Multi-carrier Sobolev projection (invariance across all Euclidean carriers)
+    p11 = out_dir / "multi_carrier_scale_space.png"
+    plot_multi_carrier_scale_space(eta=eta, a=a, b=3, level=7, out_path=p11)
+    console.print(f"  ✓ Saved multi-carrier Sobolev projection: [green]{p11}[/green]")
 
     console.print(f"[bold green]Done! All figures successfully generated.[/bold green]")
 

@@ -873,3 +873,112 @@ def plot_observer_scale_space(
         fig.savefig(out_path, bbox_inches="tight")
 
     return fig
+
+
+def plot_multi_carrier_scale_space(
+    eta: float = 0.10,
+    a: float = 0.50,
+    b: int = 3,
+    level: int = 7,
+    out_path: str | Path | None = None,
+) -> plt.Figure:
+    """Four-panel publication-grade proof that ANY Euclidean carrier curve is recovered under scale-space observation."""
+    from polygonal_circle.carriers import (
+        CircleCarrier,
+        EllipseCarrier,
+        SuperellipseCarrier,
+        TrefoilCarrier,
+    )
+    from polygonal_circle.observer import ScaleSpaceObserver
+
+    set_plot_style()
+    fig, axes = plt.subplots(2, 2, figsize=(11, 8.5))
+
+    carrier_list = [
+        (CircleCarrier(radius=1.0), "Circle (R=1.0)", "#2b6cb0"),
+        (EllipseCarrier(semi_major=1.25, semi_minor=0.80), "Ellipse (a=1.25, b=0.80)", "#dd6b20"),
+        (SuperellipseCarrier(semi_major=1.0, semi_minor=1.0, exponent=4.0), "Squircle (p=4.0)", "#38a169"),
+        (TrefoilCarrier(base_radius=1.0, modulation=0.15), "Trefoil (3-Lobed)", "#805ad5"),
+    ]
+
+    # Panel A: 2D Spatial Boundaries with Fractal Perturbations
+    ax_a = axes[0, 0]
+    observers = []
+    for carrier, label_name, col in carrier_list:
+        obs = ScaleSpaceObserver.from_carrier(
+            carrier=carrier,
+            eta=eta,
+            a=a,
+            b=b,
+            level=level,
+            num_points=4096,
+        )
+        observers.append((carrier, label_name, col, obs))
+        xs, ys = obs.filter_curve(sigma=0.005)
+        ax_a.plot(xs, ys, label=label_name, color=col, linewidth=1.2, alpha=0.85)
+
+    ax_a.set_aspect("equal")
+    ax_a.set_xlim(-1.45, 1.45)
+    ax_a.set_ylim(-1.45, 1.45)
+    ax_a.set_title("(A) Microscopic Fractal Geometry (4 Euclidean Carriers)")
+    ax_a.legend(loc="lower right", framealpha=0.9, fontsize=7.5)
+
+    sigmas = np.logspace(-3, 0.4, 30)
+
+    # Panels B, C, D
+    ax_b = axes[0, 1]
+    ax_c = axes[1, 0]
+    ax_d = axes[1, 1]
+
+    for carrier, label_name, col, obs in observers:
+        observations = obs.sweep_resolutions(sigmas)
+        s_vals = [o.sigma for o in observations]
+        p_vals = [o.perimeter for o in observations]
+        q_vals = [o.isoperimetric_quotient for o in observations]
+        d_vals = [o.apparent_dimension for o in observations]
+
+        # Panel B: Perimeter vs sigma (showing leveling off at theoretical carrier perimeter)
+        p_target = carrier.exact_perimeter()
+        ax_b.plot(s_vals, p_vals, color=col, linewidth=1.8, label=f"{label_name}")
+        ax_b.axhline(p_target, color=col, linestyle="--", linewidth=1.0, alpha=0.7)
+
+        # Panel C: Isoperimetric Quotient Q vs sigma
+        q_target = carrier.isoperimetric_quotient()
+        ax_c.plot(s_vals, q_vals, color=col, linewidth=1.8, label=f"{label_name} ($Q_0={q_target:.3f}$)")
+        ax_c.axhline(q_target, color=col, linestyle="--", linewidth=1.0, alpha=0.7)
+
+        # Panel D: Apparent Dimension D vs sigma
+        ax_d.plot(s_vals, d_vals, color=col, linewidth=1.8, label=f"{label_name}")
+
+    ax_b.set_xscale("log")
+    ax_b.set_xlabel("Observer Spatial Aperture $\\sigma$ [rad]")
+    ax_b.set_ylabel("Measured Perimeter $P_\\sigma$")
+    ax_b.set_title("(B) Perimeter Recovery at Carrier Euclidean Value")
+    ax_b.legend(loc="upper right", framealpha=0.9, fontsize=7.5)
+
+    ax_c.set_xscale("log")
+    ax_c.set_xlabel("Observer Spatial Aperture $\\sigma$ [rad]")
+    ax_c.set_ylabel("Isoperimetric Quotient $Q(\\sigma) = 4\\pi A_\\sigma / P_\\sigma^2$")
+    ax_c.set_title("(C) Recovery of Carrier Isoperimetric Efficiency")
+    ax_c.legend(loc="lower right", framealpha=0.9, fontsize=7.5)
+
+    d_theory = 1.0 + math.log(b * a) / math.log(b)
+    ax_d.axhline(1.0, color="#2d3748", linestyle="--", linewidth=1.5, label="Universal Euclidean $D = 1$")
+    ax_d.axhline(d_theory, color="#e53e3e", linestyle=":", linewidth=1.2, label=f"Fractal $D \\approx {d_theory:.3f}$")
+    ax_d.set_xscale("log")
+    ax_d.set_xlabel("Observer Spatial Aperture $\\sigma$ [rad]")
+    ax_d.set_ylabel("Apparent Topological/Fractal Dimension $D(\\sigma)$")
+    ax_d.set_title("(D) Universal Scale-Space Dimension Flow: $D(\\sigma) \\to 1.000$")
+    ax_d.legend(loc="upper right", framealpha=0.9, fontsize=7.5)
+
+    fig.suptitle(
+        f"General Sobolev Projection: Any Euclidean Shape is the IR Fixed Point of Fractal Perturbation",
+        y=1.02,
+    )
+    plt.tight_layout()
+
+    if out_path:
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out_path, bbox_inches="tight")
+
+    return fig

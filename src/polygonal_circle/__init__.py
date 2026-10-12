@@ -1,6 +1,13 @@
 """polygonal-circle: recursive polygonal models of circles and fractal boundaries."""
 
 from polygonal_circle.geometry import Polygon
+from polygonal_circle.carriers import (
+    CircleCarrier,
+    EllipseCarrier,
+    ParametricCarrier,
+    SuperellipseCarrier,
+    TrefoilCarrier,
+)
 from polygonal_circle.waves import (
     WaveformType,
     get_waveform,
@@ -41,6 +48,11 @@ from polygonal_circle.universality import (
 __version__ = "0.1.0"
 __all__ = [
     "Polygon",
+    "ParametricCarrier",
+    "CircleCarrier",
+    "EllipseCarrier",
+    "SuperellipseCarrier",
+    "TrefoilCarrier",
     "WaveformType",
     "get_waveform",
     "triangle_wave",
