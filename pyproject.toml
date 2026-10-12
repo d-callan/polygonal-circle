@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "polygonal-circle"
+version = "0.1.0"
+description = "Recursive polygonal circles: examining the transition between Euclidean circles and fractal boundaries"
+authors = [
+    { name = "Danielle Callan" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "pandas>=2.0",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[project.scripts]
+polygonal-circle = "polygonal_circle.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
