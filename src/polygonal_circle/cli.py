@@ -13,11 +13,13 @@ from polygonal_circle.analysis import PolygonalCircleAnalysis
 from polygonal_circle.annulus import AnnularPolygonalCircle
 from polygonal_circle.attractor import compute_lyapunov_spectrum
 from polygonal_circle.model import PolygonalCircle
+from polygonal_circle.observer import ScaleSpaceObserver
 from polygonal_circle.plotting import (
     plot_annular_circle,
     plot_corridor_sweep,
     plot_macroscopic_vs_microscopic,
     plot_multilevel_shapes,
+    plot_observer_scale_space,
     plot_phase_transition_and_rg,
     plot_richardson_crossover,
     plot_scaling_regimes,
@@ -374,6 +376,83 @@ def universality_info(
     console.print(table)
 
 
+@app.command("observer")
+def observer_single(
+    sigma: float = typer.Option(0.10, "--sigma", "-s", help="Observer spatial resolution aperture sigma [rad]"),
+    a: float = typer.Option(0.50, "-a", help="Shrinkage factor a"),
+    b: int = typer.Option(3, "-b", help="Frequency multiplier b"),
+    eta: float = typer.Option(0.10, "--eta", help="Irregularity amplitude"),
+    level: int = typer.Option(7, "-L", "--level", help="Microscopic recursion level"),
+):
+    """Measure the geometry through the aperture of an independent observer with resolution sigma."""
+    pc = PolygonalCircle(radius=1.0, eta=eta, a=a, b=b)
+    obs = ScaleSpaceObserver(pc, level=level, num_points=4096)
+    o = obs.observe(sigma)
+
+    console.print(f"[bold cyan]Independent Observer Measurement (Resolution aperture sigma = {sigma:.4f} rad)[/bold cyan]")
+    console.print(f"  Observed Mean Radius R_obs:      [bold]{o.mean_radius:.5f}[/bold]")
+    console.print(f"  Observed Perimeter P_obs:        [bold]{o.perimeter:.5f}[/bold]")
+    console.print(f"  Observed Enclosed Area A_obs:     [bold]{o.area:.5f}[/bold]")
+    console.print(f"  Apparent Circumference Ratio pi: [bold green]{o.pi_obs:.5f}[/bold green] (vs Euclidean pi = {math.pi:.5f})")
+    console.print(f"  Isoperimetric Quotient Q_obs:    [bold green]{o.isoperimetric_quotient:.5f}[/bold green] (Circle maximum = 1.00000)")
+    console.print(f"  Apparent Dimension D_obs:        [bold]{o.apparent_dimension:.4f}[/bold]")
+
+    if sigma >= 0.5:
+        console.print("  [bold green]Classification: Infrared Fixed Point (Euclidean Circle Observed)[/bold green]")
+    elif sigma <= 0.01:
+        console.print("  [bold red]Classification: Ultraviolet Regime (Fractal Coastline Observed)[/bold red]")
+    else:
+        console.print("  [bold yellow]Classification: Scale-Space Crossover Intermediate[/bold yellow]")
+
+
+@app.command("observer-sweep")
+def observer_sweep(
+    a: float = typer.Option(0.50, "-a", help="Shrinkage factor a"),
+    b: int = typer.Option(3, "-b", help="Frequency multiplier b"),
+    eta: float = typer.Option(0.10, "--eta", help="Irregularity amplitude"),
+    level: int = typer.Option(7, "-L", "--level", help="Microscopic recursion level"),
+):
+    """Demonstrate the emergence of Euclidean pi and Q=1 across a continuum of observer apertures."""
+    pc = PolygonalCircle(radius=1.0, eta=eta, a=a, b=b)
+    obs = ScaleSpaceObserver(pc, level=level, num_points=4096)
+    sigmas = [1.5, 1.0, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001]
+
+    console.print(f"[bold cyan]Observer Resolution Sweep: Demonstrating the Emergence of Euclidean Geometry[/bold cyan]")
+    console.print(f"  Model parameters: a={a}, b={b}, eta={eta}, level={level}")
+    console.print(f"  Theoretical crossover scale: sigma* ~ {obs.theoretical_crossover_scale():.3f} rad\n")
+
+    table = Table(title="Scale-Space Observer Measurement Across Resolutions")
+    table.add_column("Observer Aperture sigma", justify="right")
+    table.add_column("Perimeter P", justify="right")
+    table.add_column("Observed pi", justify="right")
+    table.add_column("|pi - pi_Euc|", justify="right")
+    table.add_column("Isoperimetric Q", justify="right")
+    table.add_column("Apparent D", justify="right")
+    table.add_column("Perceived Regime", justify="left")
+
+    for s in sigmas:
+        o = obs.observe(s)
+        diff_pi = abs(o.pi_obs - math.pi)
+        if s >= 0.5:
+            regime = "[green]Euclidean Circle[/green]"
+        elif s <= 0.01:
+            regime = "[red]Fractal Boundary[/red]"
+        else:
+            regime = "[yellow]Crossover[/yellow]"
+
+        table.add_row(
+            f"{s:.4f}",
+            f"{o.perimeter:.4f}",
+            f"{o.pi_obs:.5f}",
+            f"{diff_pi:.5f}",
+            f"{o.isoperimetric_quotient:.5f}",
+            f"{o.apparent_dimension:.4f}",
+            regime,
+        )
+
+    console.print(table)
+
+
 @app.command()
 def plot(
     output_dir: str = typer.Option("assets", "-o", "--output-dir", help="Directory to save figures"),
@@ -434,6 +513,11 @@ def plot(
     p9 = out_dir / "universality_proof.png"
     plot_universality_proof(a=a, b=3, level=3, out_path=p9)
     console.print(f"  ✓ Saved universality proof across 5 waveforms: [green]{p9}[/green]")
+
+    # 10. Observer scale-space projection (emergence of Euclidean geometry)
+    p10 = out_dir / "observer_scale_space.png"
+    plot_observer_scale_space(a=a, b=3, level=7, out_path=p10)
+    console.print(f"  ✓ Saved observer scale-space projection: [green]{p10}[/green]")
 
     console.print(f"[bold green]Done! All figures successfully generated.[/bold green]")
 

@@ -27,6 +27,10 @@ from polygonal_circle.attractor import (
     SkewProductCircleMap,
     compute_lyapunov_spectrum,
 )
+from polygonal_circle.observer import (
+    ObserverObservation,
+    ScaleSpaceObserver,
+)
 from polygonal_circle.universality import (
     WaveformUniversalSummary,
     analyze_waveform_universality,
@@ -58,6 +62,8 @@ __all__ = [
     "LyapunovSpectrum",
     "SkewProductCircleMap",
     "compute_lyapunov_spectrum",
+    "ObserverObservation",
+    "ScaleSpaceObserver",
     "WaveformUniversalSummary",
     "analyze_waveform_universality",
     "compute_multi_waveform_collapse",

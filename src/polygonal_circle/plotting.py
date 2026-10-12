@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import math
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -771,6 +772,98 @@ def plot_universality_proof(
 
     fig.suptitle(
         f"Empirical Proof of Universality: Invariance Across Microscopic Generators",
+        y=1.02,
+    )
+    plt.tight_layout()
+
+    if out_path:
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out_path, bbox_inches="tight")
+
+    return fig
+
+
+def plot_observer_scale_space(
+    a: float = 0.50,
+    b: int = 3,
+    level: int = 7,
+    out_path: str | Path | None = None,
+) -> plt.Figure:
+    """Four-panel publication-grade proof of Euclidean geometry as the Infrared observer limit."""
+    from polygonal_circle.model import PolygonalCircle
+    from polygonal_circle.observer import ScaleSpaceObserver
+
+    set_plot_style()
+    fig, axes = plt.subplots(2, 2, figsize=(11, 8.5))
+
+    pc = PolygonalCircle(radius=1.0, eta=0.10, a=a, b=b)
+    obs = ScaleSpaceObserver(pc, level=level, num_points=4096)
+
+    # Panel A: The 4 Observers (Macro to Micro)
+    ax_a = axes[0, 0]
+    observer_configs = [
+        (1.0, "Macro Observer ($\\sigma=1.0$, Euclidean Circle)", "#2b6cb0", 2.0),
+        (0.12, "Meso Observer ($\\sigma=0.12$, Damped Ripples)", "#d69e2e", 1.5),
+        (0.03, "Fine Observer ($\\sigma=0.03$, Harmonic Facets)", "#805ad5", 1.2),
+        (0.005, "Micro Observer ($\\sigma=0.005$, Fractal Teeth)", "#e53e3e", 1.0),
+    ]
+
+    for sigma_val, label_str, col, lw in observer_configs:
+        xs, ys = obs.filter_curve(sigma_val)
+        ax_a.plot(xs, ys, label=label_str, color=col, linewidth=lw, alpha=0.9)
+
+    ax_a.set_aspect("equal")
+    ax_a.set_xlim(-1.15, 1.15)
+    ax_a.set_ylim(-1.15, 1.15)
+    ax_a.set_title("(A) Boundary Filtered by Observer Resolution $\\sigma$")
+    ax_a.legend(loc="lower right", framealpha=0.9, fontsize=7.5)
+
+    # Sweep resolutions for Panels B, C, D
+    sigmas = np.logspace(-3, 0.4, 35)
+    observations = obs.sweep_resolutions(sigmas)
+    s_vals = [o.sigma for o in observations]
+    pi_vals = [o.pi_obs for o in observations]
+    q_vals = [o.isoperimetric_quotient for o in observations]
+    d_vals = [o.apparent_dimension for o in observations]
+    sigma_star = obs.theoretical_crossover_scale()
+
+    # Panel B: Measured pi vs. Observer Aperture sigma
+    ax_b = axes[0, 1]
+    ax_b.plot(s_vals, pi_vals, color="#2b6cb0", linewidth=2.0, marker="o", markersize=3.5, label="Measured $\\pi_{\\mathrm{obs}}(\\sigma) = \\frac{P_\\sigma}{2 \\bar{R}_\\sigma}$")
+    ax_b.axhline(np.pi, color="#e53e3e", linestyle="--", linewidth=1.5, label="Euclidean $\\pi = 3.14159\\dots$")
+    ax_b.axvline(sigma_star, color="#718096", linestyle=":", label=f"Crossover $\\sigma^* \\approx {sigma_star:.2f}$")
+    ax_b.set_xscale("log")
+    ax_b.set_xlabel("Observer Spatial Aperture $\\sigma$ [rad]")
+    ax_b.set_ylabel("Apparent Circumference-to-Diameter Ratio $\\pi_{\\mathrm{obs}}$")
+    ax_b.set_title("(B) Emergence of $\\pi$ in the Infrared Observer Limit")
+    ax_b.legend(loc="upper right", framealpha=0.9, fontsize=8)
+
+    # Panel C: Isoperimetric Ratio Q vs. sigma (Collapse to Circle Q=1)
+    ax_c = axes[1, 0]
+    ax_c.plot(s_vals, q_vals, color="#38a169", linewidth=2.0, marker="s", markersize=3.5, label="Observed $Q(\\sigma) = \\frac{4\\pi A_\\sigma}{P_\\sigma^2}$")
+    ax_c.axhline(1.0, color="#2d3748", linestyle="--", linewidth=1.5, label="Euclidean Circle Maximum ($Q = 1$)")
+    ax_c.axvline(sigma_star, color="#718096", linestyle=":", label="Crossover $\\sigma^*$")
+    ax_c.set_xscale("log")
+    ax_c.set_xlabel("Observer Spatial Aperture $\\sigma$ [rad]")
+    ax_c.set_ylabel("Isoperimetric Quotient $Q(\\sigma)$")
+    ax_c.set_title("(C) Recovery of the Euclidean Isoperimetric Extremum")
+    ax_c.legend(loc="lower right", framealpha=0.9, fontsize=8)
+
+    # Panel D: Apparent Dimension D(sigma) Crossover Flow
+    ax_d = axes[1, 1]
+    d_theory = 1.0 + math.log(b * a) / math.log(b)
+    ax_d.plot(s_vals, d_vals, color="#805ad5", linewidth=2.0, marker="^", markersize=3.5, label="Apparent Dimension $D(\\sigma) = 1 - \\frac{d\\ln P}{d\\ln \\sigma}$")
+    ax_d.axhline(1.0, color="#2b6cb0", linestyle="--", linewidth=1.5, label="Euclidean Dimension $D = 1$ (IR Limit)")
+    ax_d.axhline(d_theory, color="#e53e3e", linestyle="--", linewidth=1.2, label=f"Fractal Dimension $D \\approx {d_theory:.3f}$ (UV Limit)")
+    ax_d.axvline(sigma_star, color="#718096", linestyle=":", label="Crossover $\\sigma^*$")
+    ax_d.set_xscale("log")
+    ax_d.set_xlabel("Observer Spatial Aperture $\\sigma$ [rad]")
+    ax_d.set_ylabel("Apparent Topological/Fractal Dimension $D(\\sigma)$")
+    ax_d.set_title("(D) Scale-Space Crossover Flow: Fractal $\\to$ Euclidean")
+    ax_d.legend(loc="upper right", framealpha=0.9, fontsize=8)
+
+    fig.suptitle(
+        f"Euclidean Geometry as the Infrared Observer Fixed Point (Scale-Space Projection)",
         y=1.02,
     )
     plt.tight_layout()
