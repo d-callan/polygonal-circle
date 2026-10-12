@@ -18,6 +18,11 @@ from polygonal_circle.renormalization import (
     order_parameter_derivative,
     rg_flow_trajectory,
 )
+from polygonal_circle.attractor import (
+    LyapunovSpectrum,
+    SkewProductCircleMap,
+    compute_lyapunov_spectrum,
+)
 
 __version__ = "0.1.0"
 __all__ = [
@@ -38,4 +43,7 @@ __all__ = [
     "order_parameter",
     "order_parameter_derivative",
     "rg_flow_trajectory",
+    "LyapunovSpectrum",
+    "SkewProductCircleMap",
+    "compute_lyapunov_spectrum",
 ]

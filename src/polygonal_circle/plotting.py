@@ -551,3 +551,111 @@ def plot_phase_transition_and_rg(
         fig.savefig(out_path, bbox_inches="tight")
 
     return fig
+
+
+def plot_strange_attractor(
+    a: float = 0.5,
+    b: int = 3,
+    out_path: str | Path | None = None,
+) -> plt.Figure:
+    """Four-panel publication-grade proof of the strange attractor and Lyapunov dynamics."""
+    from polygonal_circle.attractor import SkewProductCircleMap, compute_lyapunov_spectrum
+
+    set_plot_style()
+    fig, axes = plt.subplots(2, 2, figsize=(11, 8.5))
+
+    sp = SkewProductCircleMap(a=a, b=b)
+    spec = compute_lyapunov_spectrum(a=a, b=b)
+
+    # Panel A: Cylinder Phase Space & Invariant Attractor
+    ax_a = axes[0, 0]
+    thetas, ys = sp.sample_invariant_attractor(n_points=1200, depth=12)
+    ax_a.plot(thetas, ys, color="#805ad5", linewidth=1.2, label=f"Invariant Attractor ($D_{{KY}} = {spec.kaplan_yorke_dimension:.3f}$)")
+    
+    # Forward trajectory scatter
+    traj_t, traj_y = sp.iterate_trajectory(theta0=0.35, y0=0.0, n_steps=180)
+    ax_a.scatter(traj_t[30:], traj_y[30:], color="#dd6b20", s=10, alpha=0.6, label="Forward Orbit (Ergodic Cloud)")
+
+    ax_a.set_xlim(0, 2 * np.pi)
+    ax_a.set_xticks([0, np.pi / 2, np.pi, 3 * np.pi / 2, 2 * np.pi])
+    ax_a.set_xticklabels(["$0$", "$\\pi/2$", "$\\pi$", "$3\\pi/2$", "$2\\pi$"])
+    ax_a.set_xlabel("Phase Angle $\\theta$ on Circle $S^1$")
+    ax_a.set_ylabel("Radial Fluctuation $y$")
+    ax_a.set_title(f"(A) Cylinder Phase Space & Attractor ($a={a}, b={b}$)")
+    ax_a.legend(loc="upper right", framealpha=0.9, fontsize=8)
+
+    # Panel B: Lyapunov Spectrum vs Parameter a
+    ax_b = axes[0, 1]
+    a_grid = np.linspace(0.05, 0.75, 300)
+    lam_theta = np.full_like(a_grid, np.log(b))
+    lam_y = np.log(a_grid)
+    lam_sum = lam_theta + lam_y
+    a_c = 1.0 / b
+
+    ax_b.plot(a_grid, lam_theta, color="#e53e3e", linewidth=1.8, label="$\\lambda_\\theta = \\ln(b) > 0$ (Chaotic Expansion)")
+    ax_b.plot(a_grid, lam_y, color="#3182ce", linewidth=1.8, label="$\\lambda_y = \\ln(a) < 0$ (Radial Contraction)")
+    ax_b.plot(a_grid, lam_sum, color="#38a169", linewidth=2.2, linestyle="--", label="$\\Lambda = \\lambda_\\theta + \\lambda_y$ (Volume Rate)")
+
+    ax_b.axhline(0.0, color="#718096", linestyle=":", linewidth=1.0)
+    ax_b.axvline(a_c, color="#dd6b20", linestyle=":", linewidth=1.2, label=f"Critical Threshold $a_c = 1/{b}$")
+    ax_b.axvspan(0.05, a_c, color="#ebf8ff", alpha=0.5, label="Area-Contracting (Smooth Circle)")
+    ax_b.axvspan(a_c, 0.75, color="#feebc8", alpha=0.5, label="Strange Attractor (Fractal)")
+
+    ax_b.set_xlabel("Radial Contraction Parameter $a$")
+    ax_b.set_ylabel("Lyapunov Exponent")
+    ax_b.set_title("(B) Lyapunov Spectrum & Zero-Crossing at $a_c$")
+    ax_b.legend(loc="lower left", framealpha=0.9, fontsize=7.5)
+
+    # Panel C: Sensitive Dependence on Initial Conditions (Butterfly Effect)
+    ax_c = axes[1, 0]
+    eps0 = 1e-6
+    n_chaos = 14
+    traj1_t, _ = sp.iterate_trajectory(theta0=0.5, y0=0.0, n_steps=n_chaos)
+    traj2_t, _ = sp.iterate_trajectory(theta0=0.5 + eps0, y0=0.0, n_steps=n_chaos)
+    
+    diffs = np.abs(traj1_t - traj2_t)
+    diffs = np.minimum(diffs, 2 * np.pi - diffs)  # shortest angular distance
+    steps = np.arange(n_chaos + 1)
+    
+    theoretical_div = eps0 * (b ** steps)
+    theoretical_div = np.minimum(theoretical_div, np.pi)
+
+    ax_c.plot(steps, diffs, marker="o", color="#e53e3e", linewidth=1.8, label="Actual Orbit Separation $|\\delta \\theta_n|$")
+    ax_c.plot(steps, theoretical_div, color="#718096", linestyle="--", label=f"Theoretical Growth $\\delta \\theta_0 e^{{\\lambda_\\theta n}} = \\delta \\theta_0 b^n$")
+    ax_c.set_yscale("log")
+    ax_c.set_xlabel("Iteration Step $n$")
+    ax_c.set_ylabel("Angular Distance $|\\theta_n^{(1)} - \\theta_n^{(2)}|$ (rad)")
+    ax_c.set_title("(C) Deterministic Chaos: Exponential Divergence")
+    ax_c.legend(loc="lower right", framealpha=0.9, fontsize=8)
+
+    # Panel D: Transverse Poincaré Cross-Section through Annulus
+    ax_d = axes[1, 1]
+    # Sample multi-level radial layers at a fixed angle theta = pi/4
+    # Show the Cantor-like structure of the attractor across recursion depths
+    depths = np.arange(1, 11)
+    fixed_theta = np.pi / 4.0
+    y_cum = [sp.invariant_graph_point(fixed_theta, depth=d) for d in depths]
+    
+    # Plot transverse distribution across 200 random phases
+    sample_phases = np.random.RandomState(42).uniform(0, 2 * np.pi, 300)
+    y_dist = [sp.invariant_graph_point(th, depth=10) for th in sample_phases]
+    
+    ax_d.hist(y_dist, bins=35, density=True, color="#805ad5", alpha=0.7, edgecolor="#44337a")
+    ax_d.axvline(np.mean(y_dist), color="#dd6b20", linestyle="--", label="Mean Fluctuation $\\langle y \\rangle \\approx 0$")
+    
+    ax_d.set_xlabel("Transverse Radial Displacement $y$")
+    ax_d.set_ylabel("Ergodic Measure Density $\\rho(y)$")
+    ax_d.set_title(f"(D) Invariant Ergodic Density on Annular Transverse Slice")
+    ax_d.legend(loc="upper right", framealpha=0.9, fontsize=8)
+
+    fig.suptitle(
+        f"Strange Attractor & Lyapunov Dynamics of the Recursive Polygonal Circle",
+        y=1.02,
+    )
+    plt.tight_layout()
+
+    if out_path:
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out_path, bbox_inches="tight")
+
+    return fig

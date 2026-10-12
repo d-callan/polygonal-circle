@@ -11,6 +11,7 @@ import typer
 
 from polygonal_circle.analysis import PolygonalCircleAnalysis
 from polygonal_circle.annulus import AnnularPolygonalCircle
+from polygonal_circle.attractor import compute_lyapunov_spectrum
 from polygonal_circle.model import PolygonalCircle
 from polygonal_circle.plotting import (
     plot_annular_circle,
@@ -20,6 +21,7 @@ from polygonal_circle.plotting import (
     plot_phase_transition_and_rg,
     plot_richardson_crossover,
     plot_scaling_regimes,
+    plot_strange_attractor,
 )
 from polygonal_circle.renormalization import classify_phase, critical_a
 
@@ -285,6 +287,49 @@ def phase_transition(
     console.print(table)
 
 
+@app.command("attractor")
+def attractor_info(
+    b: int = typer.Option(3, "-b", help="Frequency multiplier b"),
+):
+    """Display the skew-product dynamical system, Lyapunov spectrum, and strange attractor dimension."""
+    a_c = critical_a(b)
+    test_as = [0.10, 0.20, 0.28, a_c, 0.38, 0.50, 0.60, 0.70]
+
+    console.print(f"[bold cyan]Skew-Product Dynamical System & Lyapunov Spectrum (b={b})[/bold cyan]")
+    console.print(f"  Mapping on Cylinder M = S^1 x R:")
+    console.print(f"    theta_{{n+1}} = (b * theta_n) mod (2pi)   [Chaotic Bernoulli Shift]")
+    console.print(f"    y_{{n+1}}     = a * y_n + phi(theta_n)     [Radial Contraction + Driving]")
+    console.print(f"  Angular Lyapunov Exponent: lambda_theta = ln({b}) = [bold green]{math.log(b):.4f}[/bold green] > 0  (Deterministic Chaos)")
+    console.print(f"  Radial Lyapunov Exponent:  lambda_y     = ln(a) < 0  (Radial Dissipation)")
+    console.print(f"  Lyapunov Sum (Volume Rate): Lambda = lambda_theta + lambda_y = ln({b}a)")
+    console.print(f"  Zero-Crossing Threshold:   a_c = 1/{b} = [bold green]{a_c:.4f}[/bold green]\n")
+
+    table = Table(title="Lyapunov Spectrum & Kaplan-Yorke / Ledrappier Dimension across a")
+    table.add_column("a", justify="center")
+    table.add_column("lambda_theta", justify="right")
+    table.add_column("lambda_y", justify="right")
+    table.add_column("Lyapunov Sum Lambda", justify="right")
+    table.add_column("Volume Nature", justify="left")
+    table.add_column("Kaplan-Yorke D_KY", justify="right")
+    table.add_column("Attractor Type", justify="left")
+
+    for a_val in test_as:
+        spec = compute_lyapunov_spectrum(a_val, b)
+        sum_style = "green" if spec.lyapunov_sum < 0.0 else ("yellow" if abs(spec.lyapunov_sum) < 1e-12 else "red")
+        vol_str = "Area-Contracting" if spec.is_area_contracting else ("Conservative" if abs(spec.lyapunov_sum) < 1e-12 else "Area-Expanding")
+        table.add_row(
+            f"{a_val:.4f}",
+            f"{spec.lambda_theta:.4f}",
+            f"{spec.lambda_y:.4f}",
+            f"[{sum_style}]{spec.lyapunov_sum:.4f}[/{sum_style}]",
+            vol_str,
+            f"{spec.kaplan_yorke_dimension:.4f}",
+            spec.attractor_type,
+        )
+
+    console.print(table)
+
+
 @app.command()
 def plot(
     output_dir: str = typer.Option("assets", "-o", "--output-dir", help="Directory to save figures"),
@@ -335,6 +380,11 @@ def plot(
     p7 = out_dir / "phase_transition.png"
     plot_phase_transition_and_rg(b=3, out_path=p7)
     console.print(f"  ✓ Saved phase transition & RG flow: [green]{p7}[/green]")
+
+    # 8. Strange attractor & Lyapunov dynamics
+    p8 = out_dir / "strange_attractor.png"
+    plot_strange_attractor(a=a, b=3, out_path=p8)
+    console.print(f"  ✓ Saved strange attractor & Lyapunov dynamics: [green]{p8}[/green]")
 
     console.print(f"[bold green]Done! All figures successfully generated.[/bold green]")
 
