@@ -57,7 +57,13 @@ polygonal-circle regimes -L 7
 # 3. Test Richardson coastline scaling and box-counting dimensions against theory
 polygonal-circle dimensions -L 9
 
-# 4. Generate publication-quality figures
+# 4. Annular polygonal circles confined between two nested circles
+polygonal-circle annulus -R 1.0 -W 0.20 -a 0.5 -L 5
+
+# 5. Sweep the corridor width knob ("wiggle room") from wide to razor-thin
+polygonal-circle wiggle-sweep -R 1.0 -L 4
+
+# 6. Generate publication-quality figures
 polygonal-circle plot -o assets
 ```
 
@@ -74,6 +80,12 @@ polygonal-circle plot -o assets
 
 ### 4. Macroscopic Circle vs. Microscopic Fractal Facets
 ![Macroscopic vs Microscopic](assets/macroscopic_vs_microscopic.png)
+
+### 5. Annular Polygonal Circle (Nested Circular Boundaries)
+![Annular Polygonal Circle](assets/annular_circle.png)
+
+### 6. Wiggle Room Knob Sweep (Narrowing Annular Corridor)
+![Corridor Width Sweep](assets/corridor_sweep.png)
 
 ## Empirical Findings
 

@@ -9,8 +9,11 @@ from rich.table import Table
 import typer
 
 from polygonal_circle.analysis import PolygonalCircleAnalysis
+from polygonal_circle.annulus import AnnularPolygonalCircle
 from polygonal_circle.model import PolygonalCircle
 from polygonal_circle.plotting import (
+    plot_annular_circle,
+    plot_corridor_sweep,
     plot_macroscopic_vs_microscopic,
     plot_multilevel_shapes,
     plot_richardson_crossover,
@@ -159,6 +162,90 @@ def dimensions(
 
 
 @app.command()
+def annulus(
+    center_radius: float = typer.Option(1.0, "-R", "--center-radius", help="Nominal center radius R0"),
+    corridor_width: float = typer.Option(0.20, "-W", "--corridor-width", help="Corridor width knob W = R_out - R_in"),
+    a: float = typer.Option(0.5, "-a", help="Shrinkage factor per level"),
+    b: int = typer.Option(3, "-b", help="Frequency multiplier per level"),
+    base_sides: int = typer.Option(12, "-N", "--base-sides", help="Base sides at level 0"),
+    max_level: int = typer.Option(5, "-L", "--max-level", help="Max level to evaluate"),
+):
+    """Evaluate polygonal circles strictly confined within two nested circular boundaries."""
+    ac = AnnularPolygonalCircle.from_center_and_width(
+        center_radius=center_radius, corridor_width=corridor_width, a=a, b=b, base_sides=base_sides
+    )
+
+    console.print(f"[bold cyan]Annular Polygonal Circle (Two Nested Boundaries)[/bold cyan]")
+    console.print(f"  Centerline Radius R0: [bold]{ac.center_radius:.4f}[/bold]")
+    console.print(f"  Inner Boundary R_in:  [bold red]{ac.r_inner:.4f}[/bold red]")
+    console.print(f"  Outer Boundary R_out: [bold blue]{ac.r_outer:.4f}[/bold blue]")
+    console.print(f"  Corridor Width Knob W: [bold green]{ac.corridor_width:.4f}[/bold green] (Half-width delta={ac.half_width:.4f})\n")
+
+    table = Table(title=f"Annular Confinement across Levels (W={corridor_width:.3f})")
+    table.add_column("Level", justify="center")
+    table.add_column("Vertices", justify="right")
+    table.add_column("Perimeter", justify="right")
+    table.add_column("Area", justify="right")
+    table.add_column("Vertex [R_min, R_max]", justify="center")
+    table.add_column("Segment Min Dist", justify="right")
+    table.add_column("Strictly Confined?", justify="center")
+
+    for lvl in range(max_level + 1):
+        poly = ac.polygon(lvl)
+        rep = ac.confinement_report(lvl)
+        confined_str = "[green]YES[/green]" if rep.strictly_confined else "[yellow]NO (chord sagitta)[/yellow]"
+        table.add_row(
+            str(lvl),
+            f"{poly.num_vertices:,}",
+            f"{poly.perimeter():.4f}",
+            f"{poly.area():.4f}",
+            f"[{rep.vertex_min_radius:.4f}, {rep.vertex_max_radius:.4f}]",
+            f"{rep.segment_min_distance:.4f}",
+            confined_str,
+        )
+
+    console.print(table)
+
+
+@app.command("wiggle-sweep")
+def wiggle_sweep(
+    center_radius: float = typer.Option(1.0, "-R", "--center-radius", help="Centerline radius R0"),
+    level: int = typer.Option(4, "-L", "--level", help="Recursion level to test"),
+    a: float = typer.Option(0.5, "-a", help="Shrinkage factor per level"),
+):
+    """Sweep the corridor width knob to observe how narrowing wiggle room affects the boundary."""
+    widths = [0.40, 0.20, 0.10, 0.05, 0.02, 0.005, 0.001]
+
+    table = Table(title=f"Wiggle Room Knob Sweep (Level n={level}, R0={center_radius})")
+    table.add_column("Width W", justify="center")
+    table.add_column("Inner R_in", justify="right")
+    table.add_column("Outer R_out", justify="right")
+    table.add_column("Perimeter", justify="right")
+    table.add_column("Area", justify="right")
+    table.add_column("Isoperimetric Q", justify="right")
+    table.add_column("Strictly Confined?", justify="center")
+
+    for w in widths:
+        ac = AnnularPolygonalCircle.from_center_and_width(
+            center_radius=center_radius, corridor_width=w, a=a, b=3, base_sides=12
+        )
+        poly = ac.polygon(level)
+        rep = ac.confinement_report(level)
+        c_str = "[green]YES[/green]" if rep.strictly_confined else "[red]NO[/red]"
+        table.add_row(
+            f"{w:.4f}",
+            f"{ac.r_inner:.4f}",
+            f"{ac.r_outer:.4f}",
+            f"{poly.perimeter():.4f}",
+            f"{poly.area():.4f}",
+            f"{poly.isoperimetric_quotient():.4f}",
+            c_str,
+        )
+
+    console.print(table)
+
+
+@app.command()
 def plot(
     output_dir: str = typer.Option("assets", "-o", "--output-dir", help="Directory to save figures"),
     eta: float = typer.Option(0.1, "--eta", help="Irregularity amplitude"),
@@ -191,6 +278,18 @@ def plot(
     p4 = out_dir / "macroscopic_vs_microscopic.png"
     plot_macroscopic_vs_microscopic(pc, level=5, out_path=p4)
     console.print(f"  ✓ Saved macroscopic vs microscopic zoom: [green]{p4}[/green]")
+
+    # 5. Annular polygon circle
+    from polygonal_circle.annulus import AnnularPolygonalCircle
+    ac = AnnularPolygonalCircle.from_center_and_width(center_radius=1.0, corridor_width=0.20, a=a, b=3)
+    p5 = out_dir / "annular_circle.png"
+    plot_annular_circle(ac, level=4, out_path=p5)
+    console.print(f"  ✓ Saved annular circle with nested boundaries: [green]{p5}[/green]")
+
+    # 6. Corridor sweep
+    p6 = out_dir / "corridor_sweep.png"
+    plot_corridor_sweep(center_radius=1.0, widths=[0.40, 0.20, 0.10, 0.03], level=4, a=a, out_path=p6)
+    console.print(f"  ✓ Saved corridor width knob sweep: [green]{p6}[/green]")
 
     console.print(f"[bold green]Done! All figures successfully generated.[/bold green]")
 

@@ -287,3 +287,149 @@ def plot_macroscopic_vs_microscopic(
         fig.savefig(out_path, bbox_inches="tight")
 
     return fig
+
+
+def plot_annular_circle(
+    annulus_circle,
+    level: int = 4,
+    out_path: str | Path | None = None,
+) -> plt.Figure:
+    """Plot an annular polygonal circle with its two enclosing circular boundaries."""
+    set_plot_style()
+    fig, (ax_full, ax_zoom) = plt.subplots(1, 2, figsize=(11, 5.2))
+
+    poly = annulus_circle.polygon(level)
+    closed = poly.closed_vertices()
+    report = annulus_circle.confinement_report(level)
+
+    # Reference circles
+    phi = np.linspace(0, 2 * np.pi, 600)
+    in_x = annulus_circle.r_inner * np.cos(phi)
+    in_y = annulus_circle.r_inner * np.sin(phi)
+    out_x = annulus_circle.r_outer * np.cos(phi)
+    out_y = annulus_circle.r_outer * np.sin(phi)
+    mid_x = annulus_circle.center_radius * np.cos(phi)
+    mid_y = annulus_circle.center_radius * np.sin(phi)
+
+    for ax in (ax_full, ax_zoom):
+        # Shaded annular corridor
+        ax.fill(
+            np.concatenate([out_x, in_x[::-1]]),
+            np.concatenate([out_y, in_y[::-1]]),
+            color="#edf2f7",
+            alpha=0.8,
+            label="Annular Corridor" if ax == ax_full else "",
+        )
+        # Inner & outer boundaries
+        ax.plot(in_x, in_y, color="#e53e3e", linestyle="--", linewidth=1.2, label=f"Inner $R_{{in}}={annulus_circle.r_inner:.2f}$" if ax == ax_full else "")
+        ax.plot(out_x, out_y, color="#3182ce", linestyle="--", linewidth=1.2, label=f"Outer $R_{{out}}={annulus_circle.r_outer:.2f}$" if ax == ax_full else "")
+        ax.plot(mid_x, mid_y, color="#a0aec0", linestyle=":", linewidth=0.8, label="Centerline $R_0$" if ax == ax_full else "")
+
+    # Full view
+    ax_full.plot(closed[:, 0], closed[:, 1], color="#dd6b20", linewidth=1.2, label=f"Polygon (n={level}, V={poly.num_vertices})")
+    ax_full.set_aspect("equal", "box")
+    ax_full.set_xlim(-1.25 * annulus_circle.r_outer, 1.25 * annulus_circle.r_outer)
+    ax_full.set_ylim(-1.25 * annulus_circle.r_outer, 1.25 * annulus_circle.r_outer)
+    ax_full.set_title(
+        f"Annular Polygonal Circle\n$W={annulus_circle.corridor_width:.2f}$ | Confined: {report.strictly_confined}"
+    )
+    ax_full.set_xlabel("$x$")
+    ax_full.set_ylabel("$y$")
+    ax_full.legend(loc="lower left", framealpha=0.9, fontsize=8)
+
+    # Highlight zoom window around theta = 0
+    r_mid = annulus_circle.center_radius
+    w = annulus_circle.corridor_width
+    zoom_box = [r_mid - 1.2 * w, r_mid + 1.2 * w, -0.8 * w, 0.8 * w]
+    rect = plt.Rectangle(
+        (zoom_box[0], zoom_box[2]),
+        zoom_box[1] - zoom_box[0],
+        zoom_box[3] - zoom_box[2],
+        linewidth=1.2,
+        edgecolor="#805ad5",
+        facecolor="none",
+        linestyle="--",
+    )
+    ax_full.add_patch(rect)
+
+    # Zoomed view
+    ax_zoom.plot(closed[:, 0], closed[:, 1], color="#dd6b20", linewidth=1.5, marker="o", markersize=3, label="Polygonal Segments")
+    ax_zoom.set_xlim(zoom_box[0], zoom_box[1])
+    ax_zoom.set_ylim(zoom_box[2], zoom_box[3])
+    ax_zoom.set_aspect("equal", "box")
+    ax_zoom.set_title("Corridor Magnification\nStrict confinement between nested circles")
+    ax_zoom.set_xlabel("$x$")
+    ax_zoom.set_ylabel("$y$")
+
+    fig.suptitle(
+        f"Nested Circular Boundaries with Wiggle Room $W={annulus_circle.corridor_width:.2f}$ (Level $n={level}$)",
+        y=1.02,
+    )
+    plt.tight_layout()
+
+    if out_path:
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out_path, bbox_inches="tight")
+
+    return fig
+
+
+def plot_corridor_sweep(
+    center_radius: float = 1.0,
+    widths: list[float] = [0.40, 0.20, 0.10, 0.03],
+    level: int = 4,
+    a: float = 0.5,
+    out_path: str | Path | None = None,
+) -> plt.Figure:
+    """Visualize polygon boundaries as the corridor width knob narrows the wiggle room."""
+    set_plot_style()
+    n_plots = len(widths)
+    fig, axes = plt.subplots(1, n_plots, figsize=(3.3 * n_plots, 3.5), sharex=True, sharey=True)
+    if n_plots == 1:
+        axes = [axes]
+
+    phi = np.linspace(0, 2 * np.pi, 500)
+
+    for idx, (ax, w) in enumerate(zip(axes, widths)):
+        from polygonal_circle.annulus import AnnularPolygonalCircle
+        ac = AnnularPolygonalCircle.from_center_and_width(
+            center_radius=center_radius, corridor_width=w, a=a, b=3, base_sides=12
+        )
+        poly = ac.polygon(level)
+        closed = poly.closed_vertices()
+
+        # Boundaries
+        in_x = ac.r_inner * np.cos(phi)
+        in_y = ac.r_inner * np.sin(phi)
+        out_x = ac.r_outer * np.cos(phi)
+        out_y = ac.r_outer * np.sin(phi)
+
+        ax.fill(
+            np.concatenate([out_x, in_x[::-1]]),
+            np.concatenate([out_y, in_y[::-1]]),
+            color="#edf2f7",
+            alpha=0.7,
+        )
+        ax.plot(in_x, in_y, color="#e53e3e", linestyle="--", linewidth=0.8)
+        ax.plot(out_x, out_y, color="#3182ce", linestyle="--", linewidth=0.8)
+        ax.plot(closed[:, 0], closed[:, 1], color="#dd6b20", linewidth=1.1)
+
+        ax.set_aspect("equal", "box")
+        ax.set_xlim(-1.25 * center_radius, 1.25 * center_radius)
+        ax.set_ylim(-1.25 * center_radius, 1.25 * center_radius)
+        ax.set_title(f"Wiggle Room $W={w:.2f}$\n$P={poly.perimeter():.3f}$")
+        ax.set_xlabel("$x$")
+        if idx == 0:
+            ax.set_ylabel("$y$")
+
+    fig.suptitle(
+        f"Narrowing the Annular Corridor (Level $n={level}$, $a={a}$)",
+        y=1.03,
+    )
+    plt.tight_layout()
+
+    if out_path:
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out_path, bbox_inches="tight")
+
+    return fig
